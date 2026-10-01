@@ -16,7 +16,8 @@ export type CandidateSource =
   | 'related';
 
 /** Pedagogical role used by the sequencer (story-arc ordering). */
-export type SequenceRole = 'introduction' | 'application' | 'prediction' | 'challenge' | 'explanation' | 'review';
+export type SequenceRole =
+  'introduction' | 'application' | 'prediction' | 'challenge' | 'explanation' | 'review';
 
 export interface Candidate {
   contentId: string;
@@ -101,7 +102,13 @@ export interface ScoredCandidate {
 
 export interface Exclusion {
   contentId: string;
-  reason: 'not_published' | 'moderation' | 'outdated' | 'blocked_creator' | 'already_seen' | 'duplicate_in_pool';
+  reason:
+    | 'not_published'
+    | 'moderation'
+    | 'outdated'
+    | 'blocked_creator'
+    | 'already_seen'
+    | 'duplicate_in_pool';
 }
 
 export interface RankedItem {
@@ -118,5 +125,10 @@ export interface FeedResult {
   rankingVersion: string;
   items: RankedItem[];
   excluded: Exclusion[];
-  diagnostics: { candidatePool: number; eligible: number; explorationCount: number; examPressure: number };
+  diagnostics: {
+    candidatePool: number;
+    eligible: number;
+    explorationCount: number;
+    examPressure: number;
+  };
 }

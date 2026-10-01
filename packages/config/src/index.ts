@@ -77,8 +77,10 @@ export const FEATURE_FLAGS = {
 } as const;
 export type FeatureFlag = keyof typeof FEATURE_FLAGS;
 
-export const isEnabled = (flag: FeatureFlag, overrides: Partial<Record<FeatureFlag, boolean>> = {}) =>
-  overrides[flag] ?? FEATURE_FLAGS[flag];
+export const isEnabled = (
+  flag: FeatureFlag,
+  overrides: Partial<Record<FeatureFlag, boolean>> = {},
+) => overrides[flag] ?? FEATURE_FLAGS[flag];
 
 export const RATE_LIMITS = {
   message_send: { max: 30, windowSeconds: 60 },
@@ -93,6 +95,16 @@ export const MODERATION_CONFIG = {
 } as const;
 
 export const NEUTRAL_HOOK_PRIOR: Record<HookType, number> = {
-  curiosity: 0.5, challenge: 0.5, surprise: 0.5, prediction: 0.5, mistake: 0.5, exam: 0.5,
-  myth: 0.5, real_world: 0.5, comparison: 0.5, speed: 0.5, story: 0.5, question: 0.5,
+  curiosity: 0.5,
+  challenge: 0.5,
+  surprise: 0.5,
+  prediction: 0.5,
+  mistake: 0.5,
+  exam: 0.5,
+  myth: 0.5,
+  real_world: 0.5,
+  comparison: 0.5,
+  speed: 0.5,
+  story: 0.5,
+  question: 0.5,
 };

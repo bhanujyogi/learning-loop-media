@@ -4,11 +4,21 @@ export const FEATURES_VERSION = 'features_v1';
 
 export const newLearnerFeatures = (learnerId: string): LearnerFeatures => ({
   learnerId,
-  subject: {}, format: {}, hook: {}, creator: {},
-  formatLearning: {}, hookLearning: {},
-  ability: 0.5, frustration: 0,
-  conceptNeed: {}, dueConceptIds: [], followedCreatorIds: [], seenContentIds: [], blockedCreatorIds: [],
-  examRelevance: {}, examDate: null,
+  subject: {},
+  format: {},
+  hook: {},
+  creator: {},
+  formatLearning: {},
+  hookLearning: {},
+  ability: 0.5,
+  frustration: 0,
+  conceptNeed: {},
+  dueConceptIds: [],
+  followedCreatorIds: [],
+  seenContentIds: [],
+  blockedCreatorIds: [],
+  examRelevance: {},
+  examDate: null,
   recent: { contentIds: [], conceptIds: [], creatorIds: [], hooks: [], formats: [] },
   sessionFatigue: 0,
 });
@@ -66,8 +76,20 @@ export function effective(a: Affinity | undefined, priorStrength = 3): number {
 export const uncertainty = (a: Affinity | undefined): number => 1 / Math.sqrt(1 + (a?.n ?? 0));
 
 export type FeedbackEvent =
-  | { type: 'engagement'; name: keyof typeof ENGAGEMENT_SIGNALS; subjectId?: string; format?: string; hook?: string | null; creatorId?: string }
-  | { type: 'learning'; name: keyof typeof LEARNING_SIGNALS; format?: string; hook?: string | null };
+  | {
+      type: 'engagement';
+      name: keyof typeof ENGAGEMENT_SIGNALS;
+      subjectId?: string;
+      format?: string;
+      hook?: string | null;
+      creatorId?: string;
+    }
+  | {
+      type: 'learning';
+      name: keyof typeof LEARNING_SIGNALS;
+      format?: string;
+      hook?: string | null;
+    };
 
 const bump = (rec: Record<string, Affinity>, key: string | null | undefined, signal: number) => {
   if (!key) return rec;
@@ -101,11 +123,19 @@ const push = (arr: string[], v: string, max = 30) => [...arr, v].slice(-max);
 /** Record that a card was shown (feeds repetition penalties + dedupe). */
 export function recordImpression(
   f: LearnerFeatures,
-  c: { contentId: string; conceptIds: string[]; creatorId: string; hook: string | null; format: string },
+  c: {
+    contentId: string;
+    conceptIds: string[];
+    creatorId: string;
+    hook: string | null;
+    format: string;
+  },
 ): LearnerFeatures {
   return {
     ...f,
-    seenContentIds: f.seenContentIds.includes(c.contentId) ? f.seenContentIds : [...f.seenContentIds, c.contentId],
+    seenContentIds: f.seenContentIds.includes(c.contentId)
+      ? f.seenContentIds
+      : [...f.seenContentIds, c.contentId],
     recent: {
       contentIds: push(f.recent.contentIds, c.contentId),
       conceptIds: c.conceptIds.reduce((a, id) => push(a, id), f.recent.conceptIds),

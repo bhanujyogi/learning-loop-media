@@ -70,11 +70,7 @@ const toCard = (s: ReviewCardState): Card => ({
 export const newReviewCard = (now: number): ReviewCardState =>
   toState(createEmptyCard(new Date(now)));
 
-export function scheduleReview(
-  card: ReviewCardState,
-  grade: Grade,
-  now: number,
-): ReviewCardState {
+export function scheduleReview(card: ReviewCardState, grade: Grade, now: number): ReviewCardState {
   const result = engine.next(toCard(card), new Date(now), GRADE_TO_RATING[grade]);
   return toState(result.card);
 }

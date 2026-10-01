@@ -124,13 +124,7 @@ export function estimate(state: MasteryState, now: number): MasteryEstimate {
 }
 
 export type KnowledgeLevel =
-  | 'unseen'
-  | 'exposed'
-  | 'familiar'
-  | 'mastered'
-  | 'weak'
-  | 'uncertain'
-  | 'stale';
+  'unseen' | 'exposed' | 'familiar' | 'mastered' | 'weak' | 'uncertain' | 'stale';
 
 /** Distinguishes exposure / familiarity / demonstrated mastery / weakness / staleness. */
 export function classify(state: MasteryState, now: number): KnowledgeLevel {

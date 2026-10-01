@@ -12,20 +12,28 @@ export type XpAction =
 /** XP rewards meaningful learning behaviour only; passive watching earns zero. */
 export function xpFor(action: XpAction): number {
   switch (action) {
-    case 'question_correct': return XP_CONFIG.questionCorrect;
-    case 'question_incorrect_attempt': return XP_CONFIG.questionIncorrectAttempt;
-    case 'review_completed': return XP_CONFIG.reviewCompleted;
-    case 'lesson_completed': return XP_CONFIG.lessonCompleted;
-    case 'quiz_completed': return XP_CONFIG.quizCompleted;
-    case 'concept_mastered': return XP_CONFIG.conceptMastered;
-    case 'watch_complete': return XP_CONFIG.watchComplete;
+    case 'question_correct':
+      return XP_CONFIG.questionCorrect;
+    case 'question_incorrect_attempt':
+      return XP_CONFIG.questionIncorrectAttempt;
+    case 'review_completed':
+      return XP_CONFIG.reviewCompleted;
+    case 'lesson_completed':
+      return XP_CONFIG.lessonCompleted;
+    case 'quiz_completed':
+      return XP_CONFIG.quizCompleted;
+    case 'concept_mastered':
+      return XP_CONFIG.conceptMastered;
+    case 'watch_complete':
+      return XP_CONFIG.watchComplete;
   }
 }
 
 /** Total XP required to reach `level` (level 1 = 0 XP). Geometric growth. */
 export function xpForLevel(level: number): number {
   let total = 0;
-  for (let l = 1; l < level; l++) total += Math.round(XP_CONFIG.levelBase * Math.pow(XP_CONFIG.levelGrowth, l - 1));
+  for (let l = 1; l < level; l++)
+    total += Math.round(XP_CONFIG.levelBase * Math.pow(XP_CONFIG.levelGrowth, l - 1));
   return total;
 }
 

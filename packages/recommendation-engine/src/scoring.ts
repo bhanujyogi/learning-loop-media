@@ -6,7 +6,7 @@ import type { Candidate, Contribution, LearnerFeatures, ScoredCandidate } from '
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0.5);
 
-export interface FeatureValues extends Record<keyof RankingWeights, number> {}
+export type FeatureValues = Record<keyof RankingWeights, number>;
 
 /** Weights adjusted for exam proximity: pressure is a ranking feature, not an override. */
 export function adjustWeights(w: RankingWeights, pressure: number): RankingWeights {
@@ -33,7 +33,10 @@ export function featureValues(c: Candidate, f: LearnerFeatures): FeatureValues {
   const followed = f.followedCreatorIds.includes(c.creatorId) ? 1 : 0;
 
   // Model A — engagement
-  const predicted_engagement = clamp01(mean([subj, fmt, hook, creator]) * (1 - 0.4 * f.sessionFatigue * (c.difficulty > 0.6 ? 1 : 0.3)));
+  const predicted_engagement = clamp01(
+    mean([subj, fmt, hook, creator]) *
+      (1 - 0.4 * f.sessionFatigue * (c.difficulty > 0.6 ? 1 : 0.3)),
+  );
 
   // Model B — learning response: per-learner format/hook learning + platform-level content stat
   const fl = effective(f.formatLearning[c.format]);
@@ -46,7 +49,9 @@ export function featureValues(c: Candidate, f: LearnerFeatures): FeatureValues {
 
   const noveltyUnseen = f.seenContentIds.includes(c.contentId) ? 0 : 1;
   const unseenDims =
-    (f.format[c.format] ? 0 : 1) + (c.hook && !f.hook[c.hook] ? 1 : 0) + (f.creator[c.creatorId] ? 0 : 1);
+    (f.format[c.format] ? 0 : 1) +
+    (c.hook && !f.hook[c.hook] ? 1 : 0) +
+    (f.creator[c.creatorId] ? 0 : 1);
   const fresh = Math.exp(-c.ageHours / (24 * 14));
   const novelty = clamp01(0.5 * noveltyUnseen + 0.3 * (unseenDims / 3) + 0.2 * fresh);
 
@@ -92,7 +97,11 @@ export function repetitionPenalties(
   });
   const out = [
     mk('recent_content', countIn(rec.contentIds, c.contentId), p.content),
-    mk('recent_concept', c.conceptIds.reduce((a, id) => a + countIn(rec.conceptIds, id), 0), p.concept),
+    mk(
+      'recent_concept',
+      c.conceptIds.reduce((a, id) => a + countIn(rec.conceptIds, id), 0),
+      p.concept,
+    ),
     mk('recent_creator', countIn(rec.creatorIds, c.creatorId), p.creator),
     mk('recent_hook', c.hook ? countIn(rec.hooks, c.hook) : 0, p.hook),
     mk('recent_format', countIn(rec.formats, c.format), p.format),
@@ -118,16 +127,19 @@ export function scoreCandidate(
   const pressure = examPressure(f.examDate, now);
   const weights = adjustWeights(cfg.weights, pressure);
   const values = featureValues(c, f);
-  const contributions: Contribution[] = (Object.keys(weights) as (keyof RankingWeights)[]).map((k) => ({
-    feature: k,
-    value: values[k],
-    weight: weights[k],
-    contribution: weights[k] * values[k],
-  }));
+  const contributions: Contribution[] = (Object.keys(weights) as (keyof RankingWeights)[]).map(
+    (k) => ({
+      feature: k,
+      value: values[k],
+      weight: weights[k],
+      contribution: weights[k] * values[k],
+    }),
+  );
   const isReview = isDeliberateReview(c, f);
   const penalties = repetitionPenalties(c, f, cfg, isReview);
   const score =
-    contributions.reduce((a, x) => a + x.contribution, 0) + penalties.reduce((a, x) => a + x.contribution, 0);
+    contributions.reduce((a, x) => a + x.contribution, 0) +
+    penalties.reduce((a, x) => a + x.contribution, 0);
   return {
     candidate: c,
     score,

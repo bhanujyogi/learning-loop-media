@@ -2,7 +2,14 @@ import type { RankingConfig } from '@learning-loop/config';
 import { examPressure } from './features';
 import { scoreCandidate } from './scoring';
 import { sequenceBatch } from './sequence';
-import type { Candidate, Exclusion, FeedResult, LearnerFeatures, RankedItem, ScoredCandidate } from './types';
+import type {
+  Candidate,
+  Exclusion,
+  FeedResult,
+  LearnerFeatures,
+  RankedItem,
+  ScoredCandidate,
+} from './types';
 
 /** Deterministic PRNG so ranking is reproducible from (seed) for debugging. */
 export function mulberry32(seed: number) {
@@ -25,7 +32,10 @@ export function filterEligible(
   const seenInPool = new Set<string>();
   for (const c of pool) {
     const ex = (reason: Exclusion['reason']) => excluded.push({ contentId: c.contentId, reason });
-    if (seenInPool.has(c.contentId)) { ex('duplicate_in_pool'); continue; }
+    if (seenInPool.has(c.contentId)) {
+      ex('duplicate_in_pool');
+      continue;
+    }
     seenInPool.add(c.contentId);
     if (!c.published) ex('not_published');
     else if (!c.moderationOk) ex('moderation');
@@ -34,12 +44,12 @@ export function filterEligible(
     else if (
       f.seenContentIds.includes(c.contentId) &&
       !c.sources.includes('review_due') // deliberate review may resurface
-    ) ex('already_seen');
+    )
+      ex('already_seen');
     else eligible.push(c);
   }
   return { eligible, excluded };
 }
-
 
 /** Greedy selection with diversity constraints and a reserved exploration share. */
 export function selectBatch(
@@ -50,7 +60,11 @@ export function selectBatch(
   const size = cfg.batchSize;
   const explorationSlots = Math.round(size * cfg.explorationRatio);
   const chosen: ScoredCandidate[] = [];
-  const counts = { creator: new Map<string, number>(), subject: new Map<string, number>(), format: new Map<string, number>() };
+  const counts = {
+    creator: new Map<string, number>(),
+    subject: new Map<string, number>(),
+    format: new Map<string, number>(),
+  };
   const fits = (s: ScoredCandidate, relax: boolean) => {
     const c = s.candidate;
     const lim = cfg.diversity;
@@ -69,7 +83,9 @@ export function selectBatch(
     counts.format.set(c.format, (counts.format.get(c.format) ?? 0) + 1);
   };
 
-  const byScore = [...scored].sort((a, b) => b.score - a.score || a.candidate.contentId.localeCompare(b.candidate.contentId));
+  const byScore = [...scored].sort(
+    (a, b) => b.score - a.score || a.candidate.contentId.localeCompare(b.candidate.contentId),
+  );
   const explorers = byScore.filter((s) => s.isExploration);
   // Exploration slots: sample (not just top) from exploration candidates → discovery with randomness.
   const pool = [...explorers];
@@ -91,11 +107,12 @@ export function selectBatch(
 
 const whyShown = (s: ScoredCandidate): Record<string, number> => {
   const out: Record<string, number> = {};
-  for (const c of [...s.contributions, ...s.penalties]) out[c.feature] = Math.round(c.contribution * 1000) / 1000;
+  for (const c of [...s.contributions, ...s.penalties])
+    out[c.feature] = Math.round(c.contribution * 1000) / 1000;
   if (s.isReview) out['deliberate_review'] = 1;
   if (s.isExploration) out['exploration_slot'] = 1;
   return out;
-}
+};
 
 export interface RankOptions {
   now: number;

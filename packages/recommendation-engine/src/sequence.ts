@@ -1,7 +1,12 @@
 import type { ScoredCandidate, SequenceRole } from './types';
 
 const ORDER: Record<SequenceRole, number> = {
-  introduction: 0, application: 1, prediction: 2, challenge: 3, explanation: 4, review: 5,
+  introduction: 0,
+  application: 1,
+  prediction: 2,
+  challenge: 3,
+  explanation: 4,
+  review: 5,
 };
 
 /**

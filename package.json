@@ -2,8 +2,11 @@
   "name": "learning-loop",
   "private": true,
   "version": "0.1.0",
+  "type": "module",
   "packageManager": "pnpm@10.28.0",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
@@ -14,6 +17,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@types/node": "^22.20.4",
     "eslint": "^9.0.0",
     "prettier": "^3.3.0",
     "typescript": "~5.9.0",

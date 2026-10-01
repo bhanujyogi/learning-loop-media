@@ -1,9 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyEvidence, classify, estimate, newMasteryState, evidenceWeight,
-  newReviewCard, scheduleReview, gradeFromPerformance, isDue, retrievability,
-  difficultyFit, targetDifficulty, updateItemDifficulty, updateFrustration,
-  detectWeakConcepts, xpFor, levelFromXp, updateStreak, type MasteryState,
+  applyEvidence,
+  classify,
+  estimate,
+  newMasteryState,
+  evidenceWeight,
+  newReviewCard,
+  scheduleReview,
+  gradeFromPerformance,
+  isDue,
+  retrievability,
+  difficultyFit,
+  targetDifficulty,
+  updateItemDifficulty,
+  updateFrustration,
+  detectWeakConcepts,
+  xpFor,
+  levelFromXp,
+  updateStreak,
+  type MasteryState,
 } from './index';
 
 const T0 = Date.UTC(2026, 0, 1);
@@ -32,13 +47,22 @@ describe('mastery', () => {
   });
   it('overconfident wrong answers count as stronger weakness evidence', () => {
     const base = applyEvidence(newMasteryState(), { kind: 'answer', correct: false, at: T0 });
-    const over = applyEvidence(newMasteryState(), { kind: 'answer', correct: false, confidence: 0.95, at: T0 });
+    const over = applyEvidence(newMasteryState(), {
+      kind: 'answer',
+      correct: false,
+      confidence: 0.95,
+      at: T0,
+    });
     expect(over.beta).toBeGreaterThan(base.beta);
   });
   it('hints reduce evidence from a correct answer; delayed recall increases it', () => {
     const plain = evidenceWeight({ kind: 'answer', correct: true, at: T0 });
-    expect(evidenceWeight({ kind: 'answer', correct: true, hintsUsed: 2, at: T0 })).toBeLessThan(plain);
-    expect(evidenceWeight({ kind: 'delayed_recall', correct: true, at: T0 })).toBeGreaterThan(plain);
+    expect(evidenceWeight({ kind: 'answer', correct: true, hintsUsed: 2, at: T0 })).toBeLessThan(
+      plain,
+    );
+    expect(evidenceWeight({ kind: 'delayed_recall', correct: true, at: T0 })).toBeGreaterThan(
+      plain,
+    );
   });
   it('exposure alone does not count as mastery', () => {
     const s = applyEvidence(newMasteryState(), { kind: 'exposure', at: T0 });
@@ -58,7 +82,9 @@ describe('scheduler (FSRS)', () => {
   it('maps performance to grades', () => {
     expect(gradeFromPerformance({ correct: false })).toBe('again');
     expect(gradeFromPerformance({ correct: true, hintsUsed: 1 })).toBe('hard');
-    expect(gradeFromPerformance({ correct: true, responseMs: 1000, expectedMs: 4000, confidence: 0.9 })).toBe('easy');
+    expect(
+      gradeFromPerformance({ correct: true, responseMs: 1000, expectedMs: 4000, confidence: 0.9 }),
+    ).toBe('easy');
     expect(gradeFromPerformance({ correct: true })).toBe('good');
   });
   it('schedules further out after successful reviews and records version', () => {
@@ -79,7 +105,10 @@ describe('scheduler (FSRS)', () => {
   it('a lapse is counted and brings the review sooner than a good grade', () => {
     let c = newReviewCard(T0);
     let now = T0;
-    for (let i = 0; i < 3; i++) { c = scheduleReview(c, 'good', now); now = c.due; }
+    for (let i = 0; i < 3; i++) {
+      c = scheduleReview(c, 'good', now);
+      now = c.due;
+    }
     const lapsed = scheduleReview(c, 'again', now);
     const good = scheduleReview(c, 'good', now);
     expect(lapsed.lapses).toBe(c.lapses + 1);
@@ -121,10 +150,18 @@ describe('weak concept detection', () => {
     return s;
   };
   it('surfaces weak concepts and their weak prerequisites; ignores unseen', () => {
-    const states = new Map<string, MasteryState>([['ohm', wrong(3)], ['volt', wrong(2)]]);
+    const states = new Map<string, MasteryState>([
+      ['ohm', wrong(3)],
+      ['volt', wrong(2)],
+    ]);
     const res = detectWeakConcepts(
-      [{ id: 'ohm', prerequisiteIds: ['volt'] }, { id: 'volt', prerequisiteIds: [] }, { id: 'new', prerequisiteIds: [] }],
-      states, T0,
+      [
+        { id: 'ohm', prerequisiteIds: ['volt'] },
+        { id: 'volt', prerequisiteIds: [] },
+        { id: 'new', prerequisiteIds: [] },
+      ],
+      states,
+      T0,
     );
     expect(res.map((r) => r.conceptId)).toContain('ohm');
     expect(res.map((r) => r.conceptId)).not.toContain('new');
@@ -144,8 +181,13 @@ describe('gamification', () => {
   });
   it('streaks continue on consecutive days, reset after a gap, are idempotent same-day', () => {
     let s = { current: 0, longest: 0, lastDay: null as number | null };
-    s = updateStreak(s, 10); s = updateStreak(s, 10); expect(s.current).toBe(1);
-    s = updateStreak(s, 11); expect(s.current).toBe(2);
-    s = updateStreak(s, 14); expect(s.current).toBe(1); expect(s.longest).toBe(2);
+    s = updateStreak(s, 10);
+    s = updateStreak(s, 10);
+    expect(s.current).toBe(1);
+    s = updateStreak(s, 11);
+    expect(s.current).toBe(2);
+    s = updateStreak(s, 14);
+    expect(s.current).toBe(1);
+    expect(s.longest).toBe(2);
   });
 });
