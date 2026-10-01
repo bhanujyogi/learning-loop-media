@@ -64,12 +64,9 @@ export function gradeAnswer(q: QuestionBody, response: unknown): GradeResult {
 
 /** Strip answer key + explanation: what a client may see BEFORE answering. */
 export function toClientQuestion(q: QuestionBody): Record<string, unknown> {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const {
-    answer: _answer,
-    explanation: _explanation,
-    ...rest
-  } = q as QuestionBody & { answer: unknown };
+  const rest: Record<string, unknown> = { ...q };
+  delete rest.answer;
+  delete rest.explanation;
   if (q.type === 'ordering') {
     // Present items in a deterministic non-answer order so the key isn't leaked by position.
     const items = [...q.items].sort((a, b) => a.id.localeCompare(b.id));
