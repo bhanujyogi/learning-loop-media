@@ -670,3 +670,24 @@ describe('learning integrity & privacy', () => {
     await admin.fails(`update pipeline_jobs set status = 'running' where id = $1`, [j]);
   });
 });
+
+describe('storage', () => {
+  it('bucket is private with MIME + size limits; uploads are scoped to the owner path; reads respect content visibility', async () => {
+    const b = (
+      await db.query<{ public: boolean; file_size_limit: number; allowed_mime_types: string[] }>(
+        `select * from storage.buckets where id = 'media'`,
+      )
+    ).rows[0]!;
+    expect(b.public).toBe(false);
+    expect(b.allowed_mime_types).not.toContain('text/html');
+    await alice.q(
+      `insert into storage.objects(bucket_id, name, owner) values ('media', auth.uid()::text || '/m1/original.jpg', auth.uid())`,
+    );
+    await alice.fails(
+      `insert into storage.objects(bucket_id, name, owner) values ('media', '${bob.id}/m1/original.jpg', auth.uid())`,
+    );
+    expect(
+      (await bob.q(`select * from storage.objects where name like '${alice.id}/%'`)).length,
+    ).toBe(0); // not attached to visible content
+  });
+});

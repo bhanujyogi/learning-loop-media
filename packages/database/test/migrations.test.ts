@@ -3,7 +3,7 @@ import { freshDb, migrationFiles } from './harness';
 
 describe('migrations', () => {
   it('apply cleanly in order on an empty database', async () => {
-    expect(migrationFiles().length).toBeGreaterThanOrEqual(11);
+    expect(migrationFiles().length).toBeGreaterThanOrEqual(13);
     const db = await freshDb();
     const r = await db.query<{ n: number }>(
       `select count(*)::int n from information_schema.tables where table_schema='public'`,

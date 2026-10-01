@@ -31,9 +31,7 @@ export interface StorageProvider {
 /** Minimal subset of supabase-js storage we use (keeps this file dependency-free and mockable). */
 export interface SupabaseStorageLike {
   from(bucket: string): {
-    createSignedUploadUrl(
-      path: string,
-    ): Promise<{
+    createSignedUploadUrl(path: string): Promise<{
       data: { signedUrl: string; token: string } | null;
       error: { message: string } | null;
     }>;
@@ -41,9 +39,7 @@ export interface SupabaseStorageLike {
       path: string,
       expiresIn: number,
     ): Promise<{ data: { signedUrl: string } | null; error: { message: string } | null }>;
-    info?(
-      path: string,
-    ): Promise<{
+    info?(path: string): Promise<{
       data: { size?: number; contentType?: string } | null;
       error: { message: string } | null;
     }>;

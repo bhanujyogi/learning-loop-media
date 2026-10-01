@@ -50,6 +50,19 @@ export const noteBlock = z.discriminatedUnion('type', [
 ]);
 export const noteBody = z.object({ blocks: z.array(noteBlock).min(1).max(300) });
 
+// ---------- Video / media-backed content ----------
+export const videoBody = z.object({
+  mediaId: id,
+  posterMediaId: id.optional(),
+  captionsMediaId: id.optional(),
+  durationMs: z
+    .number()
+    .int()
+    .min(1000)
+    .max(15 * 60_000),
+  transcript: z.string().max(20_000).optional(),
+});
+
 // ---------- Questions ----------
 const option = z.object({ id: id, text: text(500), mediaId: id.optional() });
 const questionBase = z.object({
