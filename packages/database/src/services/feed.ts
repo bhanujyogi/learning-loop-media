@@ -237,6 +237,49 @@ export async function getFeed(sql: Sql, req: FeedRequest): Promise<FeedResponse>
       ),
       'followed_creator',
     );
+  // saved_topic: other content on concepts the learner has saved
+  add(
+    await q(
+      `and exists (select 1 from content_concepts x where x.content_id = c.id and x.concept_id in
+         (select cc.concept_id from saves sv join content_concepts cc on cc.content_id = sv.content_id where sv.user_id = $1))`,
+      [],
+    ),
+    'saved_topic',
+  );
+  // adjacent_concept: unseen concepts whose prerequisites are all reasonably mastered ("next up")
+  add(
+    await q(
+      `and exists (select 1 from content_concepts x join concept_prerequisites p on p.concept_id = x.concept_id
+          where x.content_id = c.id
+            and not exists (select 1 from concept_mastery m where m.user_id = $1 and m.concept_id = x.concept_id)
+            and not exists (select 1 from concept_prerequisites p2 left join concept_mastery m2 on m2.user_id = $1 and m2.concept_id = p2.prerequisite_id
+                             where p2.concept_id = x.concept_id and (m2.concept_id is null or m2.alpha / (m2.alpha + m2.beta) < 0.65)))`,
+      [],
+      'c.difficulty nulls last, c.published_at desc',
+      25,
+    ),
+    'adjacent_concept',
+  );
+  // challenge: a stretch above current ability
+  add(
+    await q(
+      `and c.difficulty >= $3`,
+      [Math.min(1, f.ability + 0.15)],
+      'c.difficulty, c.published_at desc',
+      20,
+    ),
+    'challenge',
+  );
+  // related: explicit relation edges from recently shown content
+  const recentIds = f.recent.contentIds.slice(-10);
+  if (recentIds.length)
+    add(
+      await q(
+        `and exists (select 1 from content_relations r where r.to_content_id = c.id and r.from_content_id = any($3::uuid[]))`,
+        [recentIds],
+      ),
+      'related',
+    );
   add(
     await q(`and c.published_at > now() - interval '7 days'`, [], 'c.published_at desc', 30),
     'new_content',

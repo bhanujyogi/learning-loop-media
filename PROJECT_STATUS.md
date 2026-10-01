@@ -13,7 +13,7 @@ It is a foundation for a product, **not a finished product**: see "Not verified"
 | Check                                          | Result                                                                                                                                                                                                         |
 | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm typecheck` / `pnpm lint`                 | clean                                                                                                                                                                                                          |
-| `pnpm test`                                    | 166 tests pass across 9 workspaces                                                                                                                                                                             |
+| `pnpm test`                                    | 177 tests pass across 9 workspaces                                                                                                                                                                             |
 | Migrations on real Postgres semantics (PGlite) | all 13 apply; RLS enabled on every public table; anon has no privileges                                                                                                                                        |
 | Security suite                                 | ~40 scenarios incl. privilege escalation, ownership forgery, direct publish, answer-key access, official-publish gating, gate forgery, moderation, blocks/messaging bypass, rate limits, learner-state forging |
 | End-to-end loop (`database/test/loop.test.ts`) | onboarding → feed → graded answer → mastery/FSRS/XP/features → next feed prioritises weak concept; idempotent; events can't forge mastery                                                                      |
@@ -23,7 +23,7 @@ It is a foundation for a product, **not a finished product**: see "Not verified"
 ## NOT verified (honest list)
 
 - **Supabase CLI/Docker stack never ran** (not available in the sandbox). Real GoTrue, Realtime, Storage service, PostgREST column/RPC behaviour are untested; the PGlite harness stubs `auth.uid()` and `storage`.
-- **Edge Functions (`supabase/functions/*`) never executed** (no Deno). They are thin; the logic they call is tested. Import-map paths and `postgres` driver wiring may need adjustment.
+- **Edge Functions (`supabase/functions/*`, including `jobs`) never executed** (no Deno). They are thin; the logic they call is tested. Import-map paths and `postgres` driver wiring may need adjustment.
 - **Mobile app never ran on a device/simulator**; UI, gestures, haptics, video playback, SecureStore adapter, NetInfo flush, safe-area layout are unexercised. `npx expo-doctor` not run. No component/E2E tests.
 - `expo install` and docs.expo.dev were blocked by the sandbox egress policy; Expo package versions were taken from `expo/bundledNativeModules.json` (SDK 57).
 - Performance claims (low-end Android, query plans at scale, feed latency) are **design intent only**; no profiling yet.
@@ -31,7 +31,7 @@ It is a foundation for a product, **not a finished product**: see "Not verified"
 
 ## Not built (by milestone — details in docs/ROADMAP.md)
 
-Creator UI & server media finaliser (upload validation exists as functions, not wired); official-pipeline workers (fetch/extract/generate) — intentionally absent; scheduled jobs (feature aggregation, retention, notifications);
+Creator UI & server media finaliser (upload validation exists as functions, not wired); official-pipeline workers (fetch/extract/generate) — intentionally absent; job _scheduling_ (jobs exist and are tested; no cron configured), feature-aggregation rollups, push delivery;
 profiles/follow/comment/notification/messaging UI; push notifications; local AI runtime + model management (abstraction only); admin editor/user management/analytics dashboards; diagnostic onboarding; alternative-representation resurfacing;
 saved_topic/adjacent/challenge/trending/related candidate sources; item-difficulty re-estimation job; content-quality improvement loop; search UI; i18n UI; accessibility audit; captions.
 
@@ -54,7 +54,8 @@ Single `pipeline_jobs` table (not three); admin runs as the staff user (no servi
 ## Known issues / watch-outs
 
 - Mobile feed list grows within a session (no head trimming); bounded per batch.
-- `learning_gain`/`quality_score` in `content_stats` are read but nothing computes them yet (defaults apply).
+- `learning_gain`/`quality_score` are computed by `aggregateContentQuality` only once it is scheduled; until then feed defaults apply.
+- `pruneRawData` deletes raw events and there is no per-user rollup yet — do not schedule it before a rollup exists if long-term event history is wanted.
 - `review_10` achievement defined, not awarded. `dailyXpCapForRepeatActions` configured, not enforced.
 - Interaction results are tracked as events only; they don't update mastery.
 - `user_progress`/`user_achievements` are readable by any authenticated user (intentional public gamification).

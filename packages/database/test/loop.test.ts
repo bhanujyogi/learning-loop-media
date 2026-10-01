@@ -263,3 +263,64 @@ describe('closed learning loop (answer → learner model → feed)', () => {
     expect(rec2.variant).toBe(rec.variant);
   });
 });
+
+describe('candidate sources', () => {
+  const sourcesFor = async (feedId: string | null) =>
+    new Map(
+      (
+        await db.query<{ content_id: string; sources: string[] }>(
+          `select content_id, sources from recommendation_items where recommendation_id = $1`,
+          [feedId],
+        )
+      ).rows.map((r) => [r.content_id, r.sources]),
+    );
+  const FC = '60000000-0000-0000-0000-000000000005'; // simple-interest flashcard (prereq: percentage-basics)
+
+  it('adjacent_concept: concepts whose prerequisites are mastered become "next up"', async () => {
+    await db.query(
+      `insert into concept_mastery(user_id, concept_id, alpha, beta, exposures, correct) values ($1,'50000000-0000-0000-0000-000000000001',9,1,8,8)`,
+      [user],
+    );
+    const feed = await getFeed(sql, { userId: user, limit: 10, now: T0, seed: 1 });
+    expect((await sourcesFor(feed.recommendationId)).get(FC)).toContain('adjacent_concept');
+  });
+
+  it('not adjacent while the prerequisite is weak/unknown', async () => {
+    const feed = await getFeed(sql, { userId: user, limit: 10, now: T0, seed: 1 });
+    expect((await sourcesFor(feed.recommendationId)).get(FC) ?? []).not.toContain(
+      'adjacent_concept',
+    );
+  });
+
+  it('saved_topic: saving content surfaces other content on the same concept', async () => {
+    await db.query(`insert into saves(user_id, content_id) values ($1,$2)`, [user, NOTE]);
+    const feed = await getFeed(sql, { userId: user, limit: 10, now: T0, seed: 1 });
+    expect((await sourcesFor(feed.recommendationId)).get(Q_UNIT)).toContain('saved_topic');
+  });
+
+  it('challenge: items a stretch above current ability', async () => {
+    await db.query(`insert into learner_profiles(user_id, ability) values ($1, 0.2)`, [user]);
+    await submitAnswer(sql, {
+      userId: user,
+      questionId: Q_UNIT,
+      response: { optionId: 'b' },
+      now: T0,
+    }); // sets features.ability
+    const f = await loadFeatures(sql, user);
+    expect(f.ability).toBeLessThan(0.3);
+    const feed = await getFeed(sql, { userId: user, limit: 10, now: T0 + 1000, seed: 1 });
+    expect((await sourcesFor(feed.recommendationId)).get(Q_CALC)).toContain('challenge');
+  });
+
+  it('related: relation edges from recently shown content', async () => {
+    const first = await getFeed(sql, { userId: user, limit: 1, now: T0, seed: 1 }); // populates the recent window
+    const shown = first.items[0]!.contentId;
+    const target = [NOTE, Q_UNIT, Q_CALC, FC].find((id) => id !== shown)!;
+    await db.query(
+      `insert into content_relations(from_content_id, to_content_id, kind) values ($1,$2,'related_question')`,
+      [shown, target],
+    );
+    const next = await getFeed(sql, { userId: user, limit: 10, now: T0 + 1000, seed: 2 });
+    expect((await sourcesFor(next.recommendationId)).get(target)).toContain('related');
+  });
+});

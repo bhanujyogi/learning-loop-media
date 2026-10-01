@@ -9,8 +9,8 @@ rule-based ranking (ranking_v1, now) → personalised scoring (now: Model A/B) �
 
 ## Candidate generation (bounded, multi-source)
 
-`weak_concept`, `review_due`, `exam_requirement`, `interest`, `followed_creator`, `new_content` (7 d), `high_quality`, `exploration` (seeded pseudo-random unseen). Defined but not yet generated:
-`saved_topic`, `adjacent_concept`, `challenge`, `trending`, `related` (see ROADMAP). A candidate can carry several sources.
+`weak_concept`, `review_due`, `exam_requirement`, `interest`, `followed_creator`, `saved_topic` (concepts of saved content), `adjacent_concept` (unseen concepts whose prerequisites are ≥0.65 mastered — "next up"), `challenge` (difficulty ≥ ability+0.15), `related` (relation edges from recently shown content), `new_content` (7 d), `high_quality`, `exploration` (seeded pseudo-random unseen).
+Not yet generated: `trending` (must additionally pass quality/relevance/safety/novelty/fit — design in ROADMAP). A candidate can carry several sources.
 
 ## Pipeline per request (`getFeed`)
 

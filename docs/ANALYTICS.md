@@ -20,9 +20,13 @@ Content: impressions, views, completion, replay, saves, shares, comments, questi
 Creators: reach, engagement, saves, learning interaction, follower growth. Courses: open/completion/quiz performance/weak points/abandonment. Platform: D1/D7 return, delayed-recall success, mastery gain.
 **Engagement ≠ learning:** both tracked separately; high-engagement/low-learning content is flagged for revision via quality signals.
 
-## Retention (policy; job not yet implemented)
+## Background jobs (`packages/database/src/jobs`; scheduled via the secured `jobs` Edge Function; idempotent and tested)
 
-Raw events: 90 d for engagement events, 365 d for learning events, 730 d for safety events (per-event `retentionDays`), then aggregated; `rate_limit_events` pruned hourly; audit log retained indefinitely.
+- `aggregateContentQuality`: per-question incorrect/abandonment/report rates, **recovery rate** (wrong first, right later = learning-gain proxy), `needs_revision` flag (≥90 % wrong with ≥20 answers, ≥70 % immediate-skip with ≥30 views, or ≥3 reports), `suggested_difficulty` stored as _evidence_ (official difficulty is never changed silently), plus `content_stats.learning_gain` and `quality_score` (completion + saves − immediate skips).
+- `pruneRawData`: deletes raw events past each event's `retentionDays` (90 d engagement, 365 d learning, 730 d safety) and `rate_limit_events` older than 1 day. **It deletes** — run aggregation first. No per-user rollup table exists yet, so long-term behavioural history lives only in `user_features`, `concept_mastery`, `review_history` and attempts.
+- `enqueueReviewDueNotifications`: ≥3 due reviews, ≤1 per user per UTC day (unique `dedupe_key`), respects `notification_preferences('review_due')`. Push delivery is not wired.
+
+Audit log is retained indefinitely.
 
 ## Scale path
 

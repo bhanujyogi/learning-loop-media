@@ -15,7 +15,7 @@ Official publishing identity for dev: seeded `ll-official` (service kind); add a
 
 ## Release checklist
 
-1. `pnpm check` + CI builds green. 2. `supabase db push` (migrations only). 3. Deploy functions (`supabase functions deploy submit-answer feed events onboarding`) with secrets set in Supabase. 4. Admin: set `NEXT_PUBLIC_*` only. 5. Mobile: EAS build with `EXPO_PUBLIC_*` only.
+1. `pnpm check` + CI builds green. 2. `supabase db push` (migrations only). 3. Deploy functions (`supabase functions deploy submit-answer feed events onboarding jobs`) with secrets set in Supabase (`JOBS_SECRET` for the scheduled `jobs` function; schedule it with pg_cron/Supabase Scheduled Functions). 4. Admin: set `NEXT_PUBLIC_*` only. 5. Mobile: EAS build with `EXPO_PUBLIC_*` only.
    Verify post-deploy: RLS smoke test as a normal user (cannot read others' drafts/learning rows), anon has no table access, bucket is private.
 
 ## Mobile builds
