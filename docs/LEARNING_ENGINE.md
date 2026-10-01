@@ -1,0 +1,15 @@
+# Learning engine (`packages/learning-engine`)
+
+Pure, versioned, UI-free. Stored rows carry the algorithm version.
+
+| Module            | Version         | What                                                                                                                                                                                                                                                                                                            |
+| ----------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mastery.ts`      | `mastery_v1`    | Beta(α,β) pseudo-counts, evidence weights (difficulty, hints, delayed recall ×2, review ×1.25, repeated-mistake ×1.5, confident-wrong ×1.25), exponential decay toward prior (half-life 45 d), `estimate()` → mean/confidence/uncertainty, `classify()` → unseen/exposed/familiar/mastered/weak/uncertain/stale |
+| `scheduler.ts`    | `fsrs_v1`       | FSRS via `ts-fsrs`; `gradeFromPerformance` (wrong→again; hints/retries/slow→hard; fast+confident→easy) ; `retrievability`                                                                                                                                                                                       |
+| `difficulty.ts`   | `difficulty_v1` | logistic expected-correct, item/learner Elo updates, **target difficulty = ability + stretch, eased by frustration** (never "optimise for easy"), `difficultyFit`, frustration EMA                                                                                                                              |
+| `weak.ts`         | —               | weak/repeated-mistake/stale/uncertain detection; weak prerequisites surface _before_ dependents; unseen ≠ weak                                                                                                                                                                                                  |
+| `gamification.ts` | —               | XP (watching = 0), geometric levels, streaks by day index                                                                                                                                                                                                                                                       |
+
+`submitAnswer` (database/services) applies the engine atomically: attempt → mastery per concept → ability/frustration → FSRS review item+history → XP/streak/achievements → events → learner features.
+Resurfacing reasons: due review, failed item, uncertainty, weak concept, delayed retrieval — ranking exempts deliberate review from repetition penalties.
+**Open work:** alternative representations on resurfacing (pick a different content item for the same concept), per-learner FSRS parameter fitting, item-difficulty re-estimation job, misconception tagging.

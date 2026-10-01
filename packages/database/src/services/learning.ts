@@ -410,7 +410,11 @@ export async function submitAnswer(db: Sql, input: SubmitAnswerInput): Promise<S
     let f = await loadFeatures(tx, input.userId);
     f = applyFeedback(f, {
       type: 'learning',
-      name: grade.correct ? 'answer_correct' : 'answer_incorrect',
+      name: grade.correct
+        ? delayed
+          ? 'delayed_recall_success'
+          : 'answer_correct'
+        : 'answer_incorrect',
       format: q.format ?? undefined,
       hook: q.hook,
     });
