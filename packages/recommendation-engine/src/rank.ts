@@ -1,7 +1,7 @@
 import type { RankingConfig } from '@learning-loop/config';
-import { examPressure } from './features';
-import { scoreCandidate } from './scoring';
-import { sequenceBatch } from './sequence';
+import { examPressure } from './features.ts';
+import { scoreCandidate } from './scoring.ts';
+import { sequenceBatch } from './sequence.ts';
 import type {
   Candidate,
   Exclusion,
@@ -9,7 +9,7 @@ import type {
   LearnerFeatures,
   RankedItem,
   ScoredCandidate,
-} from './types';
+} from './types.ts';
 
 /** Deterministic PRNG so ranking is reproducible from (seed) for debugging. */
 export function mulberry32(seed: number) {

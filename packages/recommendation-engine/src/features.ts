@@ -1,4 +1,4 @@
-import type { Affinity, LearnerFeatures } from './types';
+import type { Affinity, LearnerFeatures } from './types.ts';
 
 export const FEATURES_VERSION = 'features_v1';
 

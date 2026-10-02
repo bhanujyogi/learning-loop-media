@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { StorageProvider } from './storage';
+import type { StorageProvider } from './storage.ts';
 
 /** Server-trusted media policy. Client-declared MIME types are NEVER trusted: bytes are sniffed. */
 export const MEDIA_POLICY = {

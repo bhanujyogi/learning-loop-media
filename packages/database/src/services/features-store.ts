@@ -1,6 +1,6 @@
 import { detectWeakConcepts, type MasteryState } from '@learning-loop/learning-engine';
 import { newLearnerFeatures, type LearnerFeatures } from '@learning-loop/recommendation-engine';
-import { ms, ts, type Sql } from '../sql';
+import { ms, ts, type Sql } from '../sql.ts';
 
 export const SEEN_CAP = 500;
 

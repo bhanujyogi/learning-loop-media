@@ -1,7 +1,7 @@
-export * from './types';
-export * from './features';
-export * from './scoring';
-export * from './rank';
-export * from './sequence';
-export { targetDifficultyFor } from './difficulty-bridge';
-export * from './bandit';
+export * from './types.ts';
+export * from './features.ts';
+export * from './scoring.ts';
+export * from './rank.ts';
+export * from './sequence.ts';
+export { targetDifficultyFor } from './difficulty-bridge.ts';
+export * from './bandit.ts';

@@ -20,8 +20,8 @@ import { XP_CONFIG } from '@learning-loop/config';
 import { applyFeedback } from '@learning-loop/recommendation-engine';
 import { sanitizeEvent } from '@learning-loop/analytics';
 import { gradeAnswer, questionBody } from '@learning-loop/validation';
-import { asUser, ms, ts, type Sql } from '../sql';
-import { loadFeatures, refreshLearningNeeds, rowToState, saveFeatures } from './features-store';
+import { asUser, ms, ts, type Sql } from '../sql.ts';
+import { loadFeatures, refreshLearningNeeds, rowToState, saveFeatures } from './features-store.ts';
 
 export interface SubmitAnswerInput {
   userId: string;

@@ -17,7 +17,7 @@ import {
   targetDifficultyFor,
   type Candidate,
   type LearnerFeatures,
-} from './index';
+} from './index.ts';
 
 const NOW = Date.UTC(2026, 5, 1);
 const cand = (id: string, o: Partial<Candidate> = {}): Candidate => ({

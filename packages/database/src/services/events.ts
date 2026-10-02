@@ -4,8 +4,8 @@ import {
   recordImpression,
   type LearnerFeatures,
 } from '@learning-loop/recommendation-engine';
-import { asUser, ts, type Sql } from '../sql';
-import { loadFeatures, saveFeatures } from './features-store';
+import { asUser, ts, type Sql } from '../sql.ts';
+import { loadFeatures, saveFeatures } from './features-store.ts';
 
 interface ContentMeta {
   id: string;

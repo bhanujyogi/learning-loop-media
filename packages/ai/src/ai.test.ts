@@ -7,7 +7,7 @@ import {
   type AIProvider,
   type DeviceCapability,
   type ModelSpec,
-} from './index';
+} from './index.ts';
 
 const dev = (o: Partial<DeviceCapability> = {}): DeviceCapability => ({
   totalMemoryMB: 6000,

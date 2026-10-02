@@ -1,4 +1,4 @@
-import type { ScoredCandidate, SequenceRole } from './types';
+import type { ScoredCandidate, SequenceRole } from './types.ts';
 
 const ORDER: Record<SequenceRole, number> = {
   introduction: 0,

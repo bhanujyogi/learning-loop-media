@@ -1,6 +1,6 @@
 import { updateAffinity, type LearnerFeatures } from '@learning-loop/recommendation-engine';
-import { asUser, type Sql } from '../sql';
-import { loadFeatures, saveFeatures } from './features-store';
+import { asUser, type Sql } from '../sql.ts';
+import { loadFeatures, saveFeatures } from './features-store.ts';
 
 export interface OnboardingInput {
   userId: string;

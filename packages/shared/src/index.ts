@@ -1,3 +1,3 @@
-export * from './domain';
-export * from './result';
-export * from './log';
+export * from './domain.ts';
+export * from './result.ts';
+export * from './log.ts';

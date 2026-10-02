@@ -1,4 +1,4 @@
-import type { Affinity } from './types';
+import type { Affinity } from './types.ts';
 
 /**
  * Bandit-readiness (docs/RECOMMENDATION_ENGINE.md): Thompson sampling over per-arm

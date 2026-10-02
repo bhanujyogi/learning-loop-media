@@ -1,2 +1,2 @@
-export * from './storage';
-export * from './media-service';
+export * from './storage.ts';
+export * from './media-service.ts';

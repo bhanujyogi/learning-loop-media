@@ -10,7 +10,7 @@ import {
   canTransition,
   nextRetryDelayMs,
   sanitizeError,
-} from './index';
+} from './index.ts';
 
 const terms = (o: Record<string, unknown> = {}) =>
   ({

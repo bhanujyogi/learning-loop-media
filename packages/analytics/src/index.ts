@@ -1,1 +1,1 @@
-export * from './taxonomy';
+export * from './taxonomy.ts';

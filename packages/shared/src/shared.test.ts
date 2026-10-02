@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clamp01, redact, setLogSink, log, type LogRecord } from './index';
+import { clamp01, redact, setLogSink, log, type LogRecord } from './index.ts';
 
 describe('shared', () => {
   it('clamp01 handles bounds and non-finite input', () => {

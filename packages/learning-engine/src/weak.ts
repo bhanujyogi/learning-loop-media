@@ -1,5 +1,5 @@
 import { clamp01 } from '@learning-loop/shared';
-import { classify, estimate, type MasteryState } from './mastery';
+import { classify, estimate, type MasteryState } from './mastery.ts';
 
 export interface ConceptRef {
   id: string;

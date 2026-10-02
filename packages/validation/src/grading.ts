@@ -1,4 +1,4 @@
-import type { QuestionBody } from './content';
+import type { QuestionBody } from './content.ts';
 
 export interface GradeResult {
   correct: boolean;

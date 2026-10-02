@@ -1,5 +1,5 @@
 import { EVENT_TAXONOMY } from '@learning-loop/analytics';
-import { ts, type Sql } from '../sql';
+import { ts, type Sql } from '../sql.ts';
 
 /**
  * Background jobs (docs/ANALYTICS.md, ARCHITECTURE.md). All are IDEMPOTENT: they recompute from a bounded window or

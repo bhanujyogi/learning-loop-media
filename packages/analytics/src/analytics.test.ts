@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EVENT_NAMES, EVENT_TAXONOMY, sanitizeEvent, skipSignal, FEEDBACK_MAP } from './index';
+import { EVENT_NAMES, EVENT_TAXONOMY, sanitizeEvent, skipSignal, FEEDBACK_MAP } from './index.ts';
 
 const NOW = Date.UTC(2026, 5, 1);
 describe('event taxonomy', () => {

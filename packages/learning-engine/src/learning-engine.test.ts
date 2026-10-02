@@ -19,7 +19,7 @@ import {
   levelFromXp,
   updateStreak,
   type MasteryState,
-} from './index';
+} from './index.ts';
 
 const T0 = Date.UTC(2026, 0, 1);
 const DAY = 86_400_000;

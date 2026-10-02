@@ -1,4 +1,4 @@
-import type { LearnerFeatures } from './types';
+import type { LearnerFeatures } from './types.ts';
 
 /** Same formula as learning-engine targetDifficulty (kept local to avoid a package cycle; tested for parity). */
 export function targetDifficultyFor(f: Pick<LearnerFeatures, 'ability' | 'frustration'>): number {

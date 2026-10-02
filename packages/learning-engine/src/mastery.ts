@@ -92,7 +92,9 @@ export function evidenceWeight(e: Evidence): number {
  */
 export const REPEAT_ATTEMPT_FACTORS = [1, 0.25, 0.1, 0.05] as const;
 export const repeatFactor = (priorAttemptsIn24h: number): number =>
-  priorAttemptsIn24h < REPEAT_ATTEMPT_FACTORS.length ? REPEAT_ATTEMPT_FACTORS[priorAttemptsIn24h]! : 0;
+  priorAttemptsIn24h < REPEAT_ATTEMPT_FACTORS.length
+    ? REPEAT_ATTEMPT_FACTORS[priorAttemptsIn24h]!
+    : 0;
 
 export function applyEvidence(prev: MasteryState, e: Evidence): MasteryState {
   const s = decay(prev, e.at);

@@ -9,8 +9,8 @@ import {
   type ProvenanceRecord,
 } from '@learning-loop/validation';
 import type { ZodType } from 'zod';
-import { evaluateSources, type Intent } from './license';
-import { findDuplicates } from './dedup';
+import { evaluateSources, type Intent } from './license.ts';
+import { findDuplicates } from './dedup.ts';
 
 /** Configurable publication quality gates (docs/CONTENT_INGESTION.md §Quality gates). */
 export const GATE_NAMES = [

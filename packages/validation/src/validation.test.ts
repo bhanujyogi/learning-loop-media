@@ -7,7 +7,7 @@ import {
   toClientQuestion,
   contentEnvelope,
   type QuestionBody,
-} from './index';
+} from './index.ts';
 
 const base = { prompt: 'Q?', explanation: 'Because.' };
 const parse = (q: unknown) => questionBody.safeParse(q);

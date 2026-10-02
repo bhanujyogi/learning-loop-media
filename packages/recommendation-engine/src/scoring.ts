@@ -1,8 +1,8 @@
 import type { RankingConfig, RankingWeights } from '@learning-loop/config';
 import { clamp01 } from '@learning-loop/shared';
-import { targetDifficultyFor } from './difficulty-bridge';
-import { effective, examPressure, uncertainty } from './features';
-import type { Candidate, Contribution, LearnerFeatures, ScoredCandidate } from './types';
+import { targetDifficultyFor } from './difficulty-bridge.ts';
+import { effective, examPressure, uncertainty } from './features.ts';
+import type { Candidate, Contribution, LearnerFeatures, ScoredCandidate } from './types.ts';
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0.5);
 
