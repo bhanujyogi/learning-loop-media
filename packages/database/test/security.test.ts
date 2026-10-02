@@ -288,14 +288,32 @@ describe('official publishing', () => {
     const id = (await pub.q<{ id: string }>(officialEnv('Official 2')))[0]!.id;
     const vid = await draft(pub, id);
     expect(await pub.fails(`select publish_content($1)`, [id])).toMatch(/quality gates not passed/);
-    // the author may NOT write gate results (only pipeline.run); the publisher identity has no pipeline.run
+    await pub.q(
+      `insert into content_provenance(content_version_id, generated_by, publishing_identity_id) values ($1,'human',$2)`,
+      [vid, identityId],
+    );
+    // the author may NOT write gate results (no pipeline.run) ...
     await pub.fails(
       `insert into quality_gate_results(content_version_id, gate, passed) values ($1,'schema_valid',true)`,
       [vid],
     );
+    // ... and even WITH pipeline.run the author cannot satisfy their own gate (independence)
     await db.query(`insert into user_roles(user_id, role) values ($1,'content_ingestion_worker')`, [
       pub.id,
     ]);
+    expect(
+      await pub.fails(
+        `insert into quality_gate_results(content_version_id, gate, passed) values ($1,'schema_valid',true)`,
+        [vid],
+      ),
+    ).toMatch(/other than the content author/);
+    await db.query(
+      `delete from user_roles where user_id = $1 and role = 'content_ingestion_worker'`,
+      [pub.id],
+    );
+    // an independent validator (pipeline.run, not an identity member) writes the gates
+    const validator = new Actor(db, await createUser(db, 'validator@example.com'));
+    await grantRole(db, validator.id!, 'content_ingestion_worker');
     for (const g of [
       'schema_valid',
       'source_valid',
@@ -305,15 +323,10 @@ describe('official publishing', () => {
       'duplicate_check_passed',
       'content_quality_check_passed',
     ])
-      await pub.q(
+      await validator.q(
         `insert into quality_gate_results(content_version_id, gate, passed) values ($1,$2,true)`,
         [vid, g],
       );
-    expect(await pub.fails(`select publish_content($1)`, [id])).toMatch(/requires provenance/);
-    await pub.q(
-      `insert into content_provenance(content_version_id, generated_by, publishing_identity_id) values ($1,'human',$2)`,
-      [vid, identityId],
-    );
     const first = (
       await pub.q<{ publish_content: string }>(`select publish_content($1, 'k1')`, [id])
     )[0]!.publish_content;
@@ -360,6 +373,11 @@ describe('moderation', () => {
     const id = await note(alice, 'Reportable');
     await draft(alice, id);
     await alice.q(`select publish_content($1)`, [id]);
+    // reporters count at full weight only once their account is >7 days old (H3)
+    await db.query(
+      `update profiles set created_at = now() - interval '30 days' where id in ($1,$2,$3)`,
+      [bob.id, carol.id, dave.id],
+    );
     await bob.q(
       `insert into reports(reporter_id,target_kind,target_id,reason) values (auth.uid(),'content',$1,'spam')`,
       [id],
@@ -597,16 +615,18 @@ describe('learning integrity & privacy', () => {
       .catch(() => undefined);
     expect((await bob.q(`select * from learner_profiles`)).length).toBe(0);
   });
-  it("events: append own only; nobody reads others' events", async () => {
-    await alice.q(`insert into events(user_id, name, payload) values (auth.uid(), 'like', '{}')`);
+  it('events: clients cannot insert at all (sanitised server path only); nobody reads others events', async () => {
+    await db.query(`insert into events(user_id, name, payload) values ($1, 'like', '{}')`, [
+      alice.id,
+    ]);
+    await alice.fails(
+      `insert into events(user_id, name, payload) values (auth.uid(), 'like', '{}')`,
+    );
     await alice.fails(
       `insert into events(user_id, name, payload) values ('${bob.id}', 'like', '{}')`,
     );
     expect((await bob.q(`select * from events`)).length).toBe(0);
     expect((await alice.q(`select * from events`)).length).toBe(1);
-    await alice.fails(
-      `insert into events(user_id, name, payload) values (auth.uid(), 'DROP TABLE', '{}')`,
-    );
   });
   it('recommendation features, diagnostics and why_shown are staff-only', async () => {
     await db.query(`insert into user_features(user_id, features) values ($1, '{}')`, [alice.id]);
