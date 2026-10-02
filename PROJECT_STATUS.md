@@ -56,7 +56,7 @@ Single `pipeline_jobs` table (not three); admin runs as the staff user (no servi
 - Mobile feed list grows within a session (no head trimming); bounded per batch.
 - `learning_gain`/`quality_score` are computed by `aggregateContentQuality` only once it is scheduled; until then feed defaults apply.
 - `pruneRawData` deletes raw events and there is no per-user rollup yet — do not schedule it before a rollup exists if long-term event history is wanted.
-- `review_10` achievement defined, not awarded. `dailyXpCapForRepeatActions` configured, not enforced.
+- `review_10` achievement defined, not awarded. `XP_CONFIG.dailyXpCap` is now enforced (see remediation).
 - Interaction results are tracked as events only; they don't update mastery.
 - `user_progress`/`user_achievements` are readable by any authenticated user (intentional public gamification).
 - Vitest pinned to ^3.2 (5.x exists); TypeScript ~5.9 in packages (mobile template uses ~6.0).

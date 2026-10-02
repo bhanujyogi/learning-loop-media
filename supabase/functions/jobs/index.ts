@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     return json(401, { error: 'unauthorized' });
   const job = new URL(req.url).searchParams.get('job');
   try {
-    const db = sql();
+    const db = sql('app_jobs');
     switch (job) {
       case 'content-quality':
         return json(200, await aggregateContentQuality(db));

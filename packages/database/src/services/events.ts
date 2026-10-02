@@ -4,7 +4,7 @@ import {
   recordImpression,
   type LearnerFeatures,
 } from '@learning-loop/recommendation-engine';
-import { ts, type Sql } from '../sql';
+import { asUser, ts, type Sql } from '../sql';
 import { loadFeatures, saveFeatures } from './features-store';
 
 interface ContentMeta {
@@ -64,7 +64,7 @@ export async function recordEvents(
     .map((r) => sanitizeEvent(r, now))
     .filter((e): e is NonNullable<typeof e> => !!e);
   if (!clean.length) return { accepted: 0, dropped: raw.length };
-  return sql.transaction(async (tx) => {
+  return asUser(sql, userId, async (tx) => {
     for (const e of clean)
       await tx.query(
         `insert into events(user_id, name, payload, client_at) values ($1,$2,$3::jsonb, ${ts(4)})`,

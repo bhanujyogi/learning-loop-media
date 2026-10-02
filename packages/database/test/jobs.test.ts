@@ -9,31 +9,19 @@ import {
   submitAnswer,
   type Sql,
 } from '../src';
-import { createUser, freshDb } from './harness';
+import { createUser, freshDb, serviceSql } from './harness';
 
 const Q_UNIT = '60000000-0000-0000-0000-000000000002';
 const Q_CALC = '60000000-0000-0000-0000-000000000003';
 const T0 = Date.UTC(2026, 5, 1, 9);
 const DAY = 86_400_000;
 
-const adapt = (db: PGlite): Sql => ({
-  query: async (t, p) => (await db.query(t, p as never[])).rows as never,
-  transaction: (fn) =>
-    db.transaction((tx) =>
-      fn({
-        query: async (t, p) => (await tx.query(t, p as never[])).rows as never,
-        transaction: () => {
-          throw new Error('nested');
-        },
-      } as Sql),
-    ),
-});
-
-let db: PGlite, sql: Sql;
+let db: PGlite, sql: Sql, jobsSql: Sql;
 beforeEach(async () => {
   db = await freshDb();
   await db.exec(readFileSync(join(__dirname, '../../../supabase/seed/seed.sql'), 'utf8'));
-  sql = adapt(db);
+  sql = serviceSql(db, 'app_server');
+  jobsSql = serviceSql(db, 'app_jobs');
 });
 
 describe('background jobs', () => {
@@ -47,7 +35,7 @@ describe('background jobs', () => {
         now: T0 + i * 1000,
       });
     }
-    const a = await aggregateContentQuality(sql, T0 + DAY);
+    const a = await aggregateContentQuality(jobsSql, T0 + DAY);
     expect(a.questionsEvaluated).toBe(1);
     expect(a.flaggedForRevision).toBe(1);
     const sig = (
@@ -58,16 +46,17 @@ describe('background jobs', () => {
     ).rows[0] as {
       needs_revision: boolean;
       incorrect_rate: number;
-      evidence: { suggested_difficulty: number; answers: number };
+      evidence: { suggested_difficulty: number; learners: number; attempts: number };
     };
     expect(sig.needs_revision).toBe(true);
     expect(sig.incorrect_rate).toBe(1);
-    expect(sig.evidence.answers).toBe(22);
+    expect(sig.evidence.learners).toBe(22);
+    expect(sig.evidence.attempts).toBe(22);
     // official difficulty is NOT silently changed; suggestion is evidence only
     expect(
       (await db.query(`select difficulty from content_items where id = $1`, [Q_CALC])).rows[0],
     ).toEqual({ difficulty: 0.4 });
-    const b = await aggregateContentQuality(sql, T0 + DAY);
+    const b = await aggregateContentQuality(jobsSql, T0 + DAY);
     expect(b).toEqual(a);
     expect((await db.query(`select 1 from content_quality_signals`)).rows).toHaveLength(1);
   });
@@ -86,7 +75,7 @@ describe('background jobs', () => {
       response: { optionId: 'a' },
       now: T0 + 3600_000,
     });
-    const r = await aggregateContentQuality(sql, T0 + DAY);
+    const r = await aggregateContentQuality(jobsSql, T0 + DAY);
     expect(r.flaggedForRevision).toBe(0);
     const s = (
       await db.query(
@@ -112,7 +101,7 @@ describe('background jobs', () => {
       `insert into rate_limit_events(user_id, action, created_at) values ($1,'comment_create', to_timestamp($2/1000.0))`,
       [u, T0 - 3 * DAY],
     );
-    const r = await pruneRawData(sql, T0);
+    const r = await pruneRawData(jobsSql, T0);
     expect(r.events).toBe(1); // like>90d pruned; recent like and 100-day-old learning event (365d retention) kept
     expect(r.rateLimitEvents).toBe(1);
     expect(
@@ -149,8 +138,8 @@ describe('background jobs', () => {
       `insert into notification_preferences(user_id, category, enabled) values ($1,'review_due', false)`,
       [b],
     );
-    expect(await enqueueReviewDueNotifications(sql, T0)).toBe(1); // a only: b opted out, c below threshold
-    expect(await enqueueReviewDueNotifications(sql, T0 + 1000)).toBe(0); // same day → no duplicate
-    expect(await enqueueReviewDueNotifications(sql, T0 + DAY)).toBe(1); // next day
+    expect(await enqueueReviewDueNotifications(jobsSql, T0)).toBe(1); // a only: b opted out, c below threshold
+    expect(await enqueueReviewDueNotifications(jobsSql, T0 + 1000)).toBe(0); // same day → no duplicate
+    expect(await enqueueReviewDueNotifications(jobsSql, T0 + DAY)).toBe(1); // next day
   });
 });

@@ -9,7 +9,7 @@ import {
   type CandidateSource,
   type SequenceRole,
 } from '@learning-loop/recommendation-engine';
-import { ts, type Sql } from '../sql';
+import { asUser, ts, type Sql } from '../sql';
 import { loadFeatures, saveFeatures } from './features-store';
 
 export interface FeedRequest {
@@ -153,11 +153,18 @@ export async function resolveRanking(
  * Candidate queries are bounded; nothing here scans the full catalogue.
  */
 export async function getFeed(sql: Sql, req: FeedRequest): Promise<FeedResponse> {
+  return asUser(sql, req.userId, (tx) => getFeedInTx(tx, req));
+}
+
+async function getFeedInTx(sql: Sql, req: FeedRequest): Promise<FeedResponse> {
   const now = req.now ?? Date.now();
   const { config, experimentId, variant } = await resolveRanking(sql, req.userId);
-  const cfg: RankingConfig = req.limit
-    ? { ...config, batchSize: Math.max(1, Math.min(30, req.limit)) }
-    : config;
+  // `limit` comes from an HTTP query string: coerce defensively (NaN/negative/huge → bounded; default = ranking batch size)
+  const requested = Number(req.limit);
+  const cfg: RankingConfig =
+    Number.isFinite(requested) && requested >= 1
+      ? { ...config, batchSize: Math.min(30, Math.floor(requested)) }
+      : config;
   let f = await loadFeatures(sql, req.userId);
 
   const pool = new Map<string, { row: Row; sources: Set<CandidateSource> }>();

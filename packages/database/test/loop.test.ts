@@ -11,7 +11,7 @@ import {
   loadFeatures,
   type Sql,
 } from '../src';
-import { createUser, freshDb } from './harness';
+import { createUser, freshDb, serviceSql } from './harness';
 
 const OHM = '50000000-0000-0000-0000-000000000004';
 const Q_UNIT = '60000000-0000-0000-0000-000000000002';
@@ -20,24 +20,11 @@ const NOTE = '60000000-0000-0000-0000-000000000001';
 const SCIENCE = '20000000-0000-0000-0000-000000000002';
 const T0 = Date.UTC(2026, 5, 1, 9);
 
-const adapt = (db: PGlite): Sql => ({
-  query: async (t, p) => (await db.query(t, p as never[])).rows as never,
-  transaction: (fn) =>
-    db.transaction((tx) =>
-      fn({
-        query: async (t, p) => (await tx.query(t, p as never[])).rows as never,
-        transaction: () => {
-          throw new Error('nested');
-        },
-      } as Sql),
-    ),
-});
-
 let db: PGlite, sql: Sql, user: string;
 beforeEach(async () => {
   db = await freshDb();
   await db.exec(readFileSync(join(__dirname, '../../../supabase/seed/seed.sql'), 'utf8'));
-  sql = adapt(db);
+  sql = serviceSql(db, 'app_server');
   user = await createUser(db, 'student@example.com');
 });
 
@@ -90,7 +77,7 @@ describe('closed learning loop (answer → learner model → feed)', () => {
         (x) => (x as { name: string }).name,
       ),
     ).toEqual(['question_answered', 'answer_incorrect']);
-    const f = await loadFeatures(sql, user);
+    const f = await sql.transaction((tx) => loadFeatures(tx, user));
     expect(f.ability).toBeLessThan(0.5);
     expect(f.formatLearning['question']!.score).toBeLessThan(0.5);
   });
@@ -124,7 +111,7 @@ describe('closed learning loop (answer → learner model → feed)', () => {
         response: { value: 7 },
         now: T0 + i * 60_000,
       });
-    const f = await loadFeatures(sql, user);
+    const f = await sql.transaction((tx) => loadFeatures(tx, user));
     expect(f.conceptNeed[OHM]).toBeGreaterThan(0.6);
     const feed = await getFeed(sql, { userId: user, limit: 2, now: T0 + 600_000, seed: 5 });
     const rows = (
@@ -220,7 +207,7 @@ describe('closed learning loop (answer → learner model → feed)', () => {
       [user],
     );
     expect(JSON.stringify(stored.rows)).not.toContain('leak');
-    const f = await loadFeatures(sql, user);
+    const f = await sql.transaction((tx) => loadFeatures(tx, user));
     expect(f.format['note']!.score).toBeGreaterThan(0.5);
     expect(
       (await db.query(`select 1 from concept_mastery where user_id = $1`, [user])).rows,
@@ -306,7 +293,7 @@ describe('candidate sources', () => {
       response: { optionId: 'b' },
       now: T0,
     }); // sets features.ability
-    const f = await loadFeatures(sql, user);
+    const f = await sql.transaction((tx) => loadFeatures(tx, user));
     expect(f.ability).toBeLessThan(0.3);
     const feed = await getFeed(sql, { userId: user, limit: 10, now: T0 + 1000, seed: 1 });
     expect((await sourcesFor(feed.recommendationId)).get(Q_CALC)).toContain('challenge');

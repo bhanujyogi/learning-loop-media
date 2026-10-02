@@ -1,6 +1,7 @@
 import { PGlite } from '@electric-sql/pglite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { Sql } from '../src/sql';
 
 export const MIGRATIONS_DIR = join(__dirname, '../../../supabase/migrations');
 
@@ -96,3 +97,28 @@ export const grantRole = (db: PGlite, user: string, role: string) =>
     user,
     role,
   ]);
+
+/**
+ * Sql port over PGlite for the SERVER-SIDE services. `role` mirrors production: services run as a least-privileged
+ * database role (not superuser, no BYPASSRLS), so tests exercise the real grants/policies (audit H6).
+ */
+export function serviceSql(db: PGlite, role?: 'app_server' | 'app_jobs'): Sql {
+  type Tx = { query: (t: string, p?: never[]) => Promise<{ rows: unknown[] }> };
+  const wrap = (tx: Tx, inTransaction: boolean): Sql => ({
+    inTransaction,
+    query: async (t, p) => (await tx.query(t, p as never[])).rows as never,
+    transaction: async (fn) => {
+      if (inTransaction) throw new Error('nested transaction');
+      return db.transaction(async (t) => {
+        if (role) await t.query(`set local role ${role}`);
+        return fn(wrap(t as unknown as Tx, true));
+      });
+    },
+  });
+  // a bare query() (outside a transaction) still runs under the service role, in its own transaction
+  const top = wrap(db as unknown as Tx, false);
+  return {
+    ...top,
+    query: (t, p) => top.transaction((tx) => tx.query(t, p)),
+  };
+}

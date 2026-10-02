@@ -1,5 +1,6 @@
 import {
   applyEvidence,
+  repeatFactor,
   classify,
   dayIndex,
   estimate,
@@ -15,10 +16,11 @@ import {
   type KnowledgeLevel,
   type ReviewCardState,
 } from '@learning-loop/learning-engine';
+import { XP_CONFIG } from '@learning-loop/config';
 import { applyFeedback } from '@learning-loop/recommendation-engine';
 import { sanitizeEvent } from '@learning-loop/analytics';
 import { gradeAnswer, questionBody } from '@learning-loop/validation';
-import { ms, ts, type Sql } from '../sql';
+import { asUser, ms, ts, type Sql } from '../sql';
 import { loadFeatures, refreshLearningNeeds, rowToState, saveFeatures } from './features-store';
 
 export interface SubmitAnswerInput {
@@ -44,6 +46,8 @@ export interface SubmitAnswerResult {
   nextReviewAt: number;
   achievements: string[];
   replayed: boolean;
+  /** true when this was a repeat of the same question within 24 h (reduced evidence; no repeat XP). */
+  repeatAttempt: boolean;
 }
 
 export class DomainFailure extends Error {
@@ -83,7 +87,7 @@ export async function submitAnswer(db: Sql, input: SubmitAnswerInput): Promise<S
   if (input.responseMs !== undefined && !(input.responseMs >= 0 && input.responseMs < 86_400_000))
     throw new DomainFailure('invalid_input', 'responseMs');
 
-  return db.transaction(async (tx) => {
+  return asUser(db, input.userId, async (tx) => {
     // idempotent replay
     if (input.idempotencyKey) {
       const prev = await tx.query<{
@@ -120,6 +124,7 @@ export async function submitAnswer(db: Sql, input: SubmitAnswerInput): Promise<S
           nextReviewAt: now,
           achievements: [],
           replayed: true,
+          repeatAttempt: false,
         };
       }
     }
@@ -148,15 +153,20 @@ export async function submitAnswer(db: Sql, input: SubmitAnswerInput): Promise<S
       n: number;
       last_correct_at: Date | null;
       recent_misses: number;
+      attempts_24h: number;
     }>(
       `select count(*)::int as n, max(created_at) filter (where correct) as last_correct_at,
-              (count(*) filter (where not correct and created_at > ${ts(3)} - interval '10 minutes'))::int as recent_misses
+              (count(*) filter (where not correct and created_at > ${ts(3)} - interval '10 minutes'))::int as recent_misses,
+              (count(*) filter (where created_at > ${ts(3)} - interval '24 hours'))::int as attempts_24h
          from question_attempts where user_id = $1 and question_id = $2`,
       [input.userId, q.id, now],
     );
     const attemptNo = (prior[0]?.n ?? 0) + 1;
     /** Retries = recent misses on this same question (a retry in the same sitting), not lifetime attempts. */
     const retries = prior[0]?.recent_misses ?? 0;
+    /** Attempts at this same question in the last 24 h: the answer was revealed after the first, so repeats are weak evidence. */
+    const repeats = prior[0]?.attempts_24h ?? 0;
+    const scale = repeatFactor(repeats);
     const lastCorrect = ms(prior[0]?.last_correct_at);
     const delayed = lastCorrect != null && now - lastCorrect > 86_400_000;
 
@@ -205,6 +215,7 @@ export async function submitAnswer(db: Sql, input: SubmitAnswerInput): Promise<S
         difficulty,
         hintsUsed: input.hintsUsed,
         confidence: input.confidence,
+        scale,
         at: now,
       });
       await tx.query(
@@ -246,12 +257,17 @@ export async function submitAnswer(db: Sql, input: SubmitAnswerInput): Promise<S
         [input.userId],
       )
     )[0]!;
-    const ability = updateLearnerAbility(lp.ability, difficulty, grade.correct);
-    const frustration = updateFrustration(lp.frustration, {
-      correct: grade.correct,
-      hintsUsed: input.hintsUsed,
-      retries,
-    });
+    // repeats of a just-answered question do not move the learner's ability estimate (audit H4)
+    const ability =
+      repeats === 0 ? updateLearnerAbility(lp.ability, difficulty, grade.correct) : lp.ability;
+    const frustration =
+      repeats === 0
+        ? updateFrustration(lp.frustration, {
+            correct: grade.correct,
+            hintsUsed: input.hintsUsed,
+            retries,
+          })
+        : lp.frustration;
     await tx.query(
       `update learner_profiles set ability = $2, frustration = $3 where user_id = $1`,
       [input.userId, ability, frustration],
@@ -295,7 +311,9 @@ export async function submitAnswer(db: Sql, input: SubmitAnswerInput): Promise<S
       attempts: retries + 1,
       confidence: input.confidence,
     });
-    const next = scheduleReview(card, g, now);
+    // A same-day repeat is not a spaced review: only schedule when this is the first attempt in 24 h or the card is due.
+    const scheduleNow = repeats === 0 || !ri || card.due <= now;
+    const next = scheduleNow ? scheduleReview(card, g, now) : card;
     const upsert = await tx.query<{ id: string }>(
       `insert into review_items(user_id, content_id, concept_id, due_at, stability, difficulty, elapsed_days, scheduled_days, reps, lapses, learning_steps, state, last_review_at, scheduler_version)
        values ($1,$2,$3, ${ts(4)}, $5,$6,$7,$8,$9,$10,$11,$12, ${ts(13)}, $14)
@@ -319,26 +337,33 @@ export async function submitAnswer(db: Sql, input: SubmitAnswerInput): Promise<S
         next.schedulerVersion,
       ],
     );
-    await tx.query(
-      `insert into review_history(review_item_id, user_id, grade, reviewed_at, prev_state) values ($1,$2,$3, ${ts(4)}, $5::jsonb)`,
-      [upsert[0]!.id, input.userId, g, now, JSON.stringify(card)],
-    );
+    if (scheduleNow)
+      await tx.query(
+        `insert into review_history(review_item_id, user_id, grade, reviewed_at, prev_state) values ($1,$2,$3, ${ts(4)}, $5::jsonb)`,
+        [upsert[0]!.id, input.userId, g, now, JSON.stringify(card)],
+      );
 
-    // ---- XP / streak / level (idempotent per attempt)
-    const awardedBase = grade.correct
-      ? xpFor('question_correct')
-      : xpFor('question_incorrect_attempt');
+    // ---- XP / streak / level (idempotent per attempt; anti-farming: one award per question+action per UTC day, daily cap)
+    const action = grade.correct ? 'question_correct' : 'question_incorrect_attempt';
+    const awardedBase = xpFor(action);
     const masteredBonus = newlyMastered.length * xpFor('concept_mastered');
-    const awarded = awardedBase + masteredBonus;
+    const dayStart = Math.floor(now / 86_400_000) * 86_400_000;
+    const today = (
+      await tx.query<{ total: number; same: boolean }>(
+        `select coalesce(sum(amount),0)::int as total,
+                coalesce(bool_or(ref_id = $2 and action = $3 and amount > 0), false) as same
+           from xp_ledger
+          where user_id = $1 and ref_kind = 'question' and created_at >= ${ts(4)} and created_at < ${ts(4)} + interval '1 day'`,
+        [input.userId, q.id, action, dayStart],
+      )
+    )[0]!;
+    const awarded = today.same
+      ? 0
+      : Math.max(0, Math.min(awardedBase + masteredBonus, XP_CONFIG.dailyXpCap - today.total));
     const ledger = await tx.query<{ id: number }>(
-      `insert into xp_ledger(user_id, action, amount, ref_kind, ref_id, idempotency_key) values ($1,$2,$3,'question_attempt',$4,$5) on conflict (user_id, idempotency_key) do nothing returning id`,
-      [
-        input.userId,
-        grade.correct ? 'question_correct' : 'question_incorrect_attempt',
-        awarded,
-        attemptId,
-        `attempt:${attemptId}`,
-      ],
+      `insert into xp_ledger(user_id, action, amount, ref_kind, ref_id, idempotency_key, created_at)
+       values ($1,$2,$3,'question',$4,$5, ${ts(6)}) on conflict (user_id, idempotency_key) do nothing returning id`,
+      [input.userId, action, awarded, q.id, `attempt:${attemptId}`, now],
     );
     await tx.query(`insert into user_progress(user_id) values ($1) on conflict do nothing`, [
       input.userId,
@@ -408,18 +433,19 @@ export async function submitAnswer(db: Sql, input: SubmitAnswerInput): Promise<S
 
     // ---- learner features: Model B (learning response) + needs
     let f = await loadFeatures(tx, input.userId);
-    f = applyFeedback(f, {
-      type: 'learning',
-      name: grade.correct
-        ? delayed
-          ? 'delayed_recall_success'
-          : 'answer_correct'
-        : 'answer_incorrect',
-      format: q.format ?? undefined,
-      hook: q.hook,
-    });
+    if (repeats === 0)
+      f = applyFeedback(f, {
+        type: 'learning',
+        name: grade.correct
+          ? delayed
+            ? 'delayed_recall_success'
+            : 'answer_correct'
+          : 'answer_incorrect',
+        format: q.format ?? undefined,
+        hook: q.hook,
+      });
     const worst = masteryOut.some((m) => m.level === 'weak');
-    if (!grade.correct && worst)
+    if (repeats === 0 && !grade.correct && worst)
       f = applyFeedback(f, {
         type: 'learning',
         name: 'repeated_mistake',
@@ -448,6 +474,7 @@ export async function submitAnswer(db: Sql, input: SubmitAnswerInput): Promise<S
       nextReviewAt: next.due,
       achievements,
       replayed: false,
+      repeatAttempt: repeats > 0,
     };
   });
 }

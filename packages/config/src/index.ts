@@ -64,7 +64,8 @@ export const XP_CONFIG = {
   conceptMastered: 50,
   /** Passive watching intentionally earns nothing. */
   watchComplete: 0,
-  dailyXpCapForRepeatActions: 400,
+  /** Max XP per UTC day from answering questions (anti-farming). Also: at most one award per question/action per day. */
+  dailyXpCap: 400,
   levelBase: 100,
   levelGrowth: 1.35,
 } as const;

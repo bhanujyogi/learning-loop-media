@@ -4,12 +4,22 @@ import { ms, ts, type Sql } from '../sql';
 
 export const SEEN_CAP = 500;
 
+/**
+ * Loads AND LOCKS the learner's feature row (`FOR UPDATE`). The features are a read-modify-write JSON document, so every
+ * caller must hold the row lock until it saves (audit H8): concurrent feed/answer/event requests for one learner serialise
+ * instead of silently overwriting each other. Refuses to run outside a transaction.
+ */
 export async function loadFeatures(sql: Sql, userId: string): Promise<LearnerFeatures> {
+  if (!sql.inTransaction) throw new Error('loadFeatures requires a transaction (row lock)');
+  const base = newLearnerFeatures(userId);
+  await sql.query(
+    `insert into user_features(user_id, features) values ($1, $2::jsonb) on conflict (user_id) do nothing`,
+    [userId, JSON.stringify(base)],
+  );
   const r = await sql.query<{ features: LearnerFeatures }>(
-    `select features from user_features where user_id = $1`,
+    `select features from user_features where user_id = $1 for update`,
     [userId],
   );
-  const base = newLearnerFeatures(userId);
   return r[0] ? { ...base, ...r[0].features, learnerId: userId } : base;
 }
 

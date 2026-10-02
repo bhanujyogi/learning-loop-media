@@ -1,5 +1,5 @@
 import { updateAffinity, type LearnerFeatures } from '@learning-loop/recommendation-engine';
-import type { Sql } from '../sql';
+import { asUser, type Sql } from '../sql';
 import { loadFeatures, saveFeatures } from './features-store';
 
 export interface OnboardingInput {
@@ -13,7 +13,7 @@ export interface OnboardingInput {
 
 /** Short cold-start capture: seeds weak priors (n=2) so the first batch explores quickly rather than locking in. */
 export async function completeOnboarding(sql: Sql, input: OnboardingInput): Promise<void> {
-  await sql.transaction(async (tx) => {
+  await asUser(sql, input.userId, async (tx) => {
     await tx.query(
       `insert into learner_profiles(user_id, exam_id, exam_date, education_level, interests, onboarding_completed)
        values ($1,$2,$3,$4,$5::text[], true)

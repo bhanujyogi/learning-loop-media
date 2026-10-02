@@ -35,6 +35,11 @@ export interface Evidence {
   hintsUsed?: number;
   /** self-reported 0..1 confidence if captured */
   confidence?: number;
+  /**
+   * 0..1 multiplier on the evidence weight. Used to discount repeated attempts at the same item inside a short window:
+   * after an attempt the answer has been revealed, so a repeat is weak evidence of learning (anti-farming, audit H4).
+   */
+  scale?: number;
   at: number;
 }
 
@@ -77,12 +82,21 @@ export function evidenceWeight(e: Evidence): number {
   w *= e.correct ? 0.75 + 0.5 * diff : 1.25 - 0.5 * diff;
   // Hints reduce the evidence of true mastery from a correct answer.
   if (e.correct && e.hintsUsed) w *= Math.max(0.25, 1 - 0.3 * e.hintsUsed);
-  return w;
+  return w * Math.max(0, Math.min(1, e.scale ?? 1));
 }
+
+/**
+ * Evidence discount for the n-th attempt at the SAME question within a rolling 24 h (n = prior attempts in the window).
+ * 1st attempt full weight; repeats shrink quickly and reach zero: repeating a question whose answer was just revealed
+ * cannot inflate mastery. A correct answer after a longer gap is handled separately (delayed recall) because n resets.
+ */
+export const REPEAT_ATTEMPT_FACTORS = [1, 0.25, 0.1, 0.05] as const;
+export const repeatFactor = (priorAttemptsIn24h: number): number =>
+  priorAttemptsIn24h < REPEAT_ATTEMPT_FACTORS.length ? REPEAT_ATTEMPT_FACTORS[priorAttemptsIn24h]! : 0;
 
 export function applyEvidence(prev: MasteryState, e: Evidence): MasteryState {
   const s = decay(prev, e.at);
-  if (e.kind === 'exposure') {
+  if (e.kind === 'exposure' || (e.scale !== undefined && e.scale <= 0)) {
     return { ...s, exposures: s.exposures + 1, lastEvidenceAt: e.at };
   }
   const w = evidenceWeight(e);

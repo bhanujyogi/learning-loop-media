@@ -20,13 +20,45 @@ export async function requireUser(req: Request): Promise<string> {
   return data.user.id;
 }
 
+// ---- Database access: LEAST PRIVILEGE (audit H6) ----------------------------------------------------------------
+// Every transaction runs `SET LOCAL ROLE app_server` (or `app_jobs`): a non-superuser role WITHOUT BYPASSRLS whose grants
+// are listed in supabase/migrations/20260102000002_service_roles.sql. Even if the connection string is the platform's
+// privileged `postgres` user, application code never executes with those privileges.
+// Preferred hardening: create a dedicated LOGIN role that is only a member of app_server/app_jobs (password set out-of-band,
+// never in a migration) and provide its URL as APP_DB_URL; SUPABASE_DB_URL remains the fallback.
 let pg: ReturnType<typeof postgres> | null = null;
-const wrap = (db: postgres.Sql | postgres.TransactionSql): Sql => ({
-  query: async (text, params) => (await db.unsafe(text, (params ?? []) as never[])) as never,
-  transaction: (fn) => (db as postgres.Sql).begin((tx) => fn(wrap(tx))) as never,
+type Role = 'app_server' | 'app_jobs';
+const wrap = (
+  db: postgres.Sql | postgres.TransactionSql,
+  role: Role,
+  inTransaction: boolean,
+): Sql => ({
+  inTransaction,
+  query: async (text, params) => {
+    if (inTransaction) return (await db.unsafe(text, (params ?? []) as never[])) as never;
+    // a bare query still runs inside its own role-scoped transaction
+    return (await (db as postgres.Sql).begin(async (tx) => {
+      await tx.unsafe(`set local role ${role}`);
+      return tx.unsafe(text, (params ?? []) as never[]);
+    })) as never;
+  },
+  transaction: (fn) => {
+    if (inTransaction) throw new Error('nested transaction');
+    return (db as postgres.Sql).begin(async (tx) => {
+      await tx.unsafe(`set local role ${role}`);
+      return fn(wrap(tx, role, true));
+    }) as never;
+  },
 });
-export const sql = (): Sql =>
-  wrap((pg ??= postgres(Deno.env.get('SUPABASE_DB_URL')!, { max: 3, prepare: false })));
+export const sql = (role: Role = 'app_server'): Sql =>
+  wrap(
+    (pg ??= postgres(Deno.env.get('APP_DB_URL') ?? Deno.env.get('SUPABASE_DB_URL')!, {
+      max: 3,
+      prepare: false,
+    })),
+    role,
+    false,
+  );
 
 /** Maps domain errors to safe HTTP responses (no stack traces / internals). */
 export function errorResponse(e: unknown): Response {
