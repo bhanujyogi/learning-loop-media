@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyEvidence,
+  repeatFactor,
   classify,
   estimate,
   newMasteryState,
@@ -189,5 +190,38 @@ describe('gamification', () => {
     s = updateStreak(s, 14);
     expect(s.current).toBe(1);
     expect(s.longest).toBe(2);
+  });
+});
+
+describe('repeat-attempt discount (anti-farming)', () => {
+  it('repeatFactor shrinks quickly and reaches zero', () => {
+    expect([0, 1, 2, 3, 4, 10].map(repeatFactor)).toEqual([1, 0.25, 0.1, 0.05, 0, 0]);
+  });
+  it('a discounted correct answer moves mastery far less than a full-weight one; scale 0 changes nothing but exposure', () => {
+    const full = applyEvidence(newMasteryState(), { kind: 'answer', correct: true, at: T0 });
+    const part = applyEvidence(newMasteryState(), {
+      kind: 'answer',
+      correct: true,
+      scale: 0.1,
+      at: T0,
+    });
+    const none = applyEvidence(newMasteryState(), {
+      kind: 'answer',
+      correct: true,
+      scale: 0,
+      at: T0,
+    });
+    expect(estimate(part, T0).mastery).toBeLessThan(estimate(full, T0).mastery);
+    expect(estimate(part, T0).mastery).toBeGreaterThan(0.5);
+    expect(none.alpha).toBe(1);
+    expect(none.beta).toBe(1);
+    expect(none.correct).toBe(0);
+    expect(none.exposures).toBe(1);
+  });
+  it('25 repeats with decaying factors cannot approach the mastered bar', () => {
+    let s = newMasteryState();
+    for (let i = 0; i < 25; i++)
+      s = applyEvidence(s, { kind: 'answer', correct: true, scale: repeatFactor(i), at: T0 + i });
+    expect(estimate(s, T0 + 30).mastery).toBeLessThan(0.75);
   });
 });

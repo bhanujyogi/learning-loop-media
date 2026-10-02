@@ -27,6 +27,8 @@ const b = (
 ): EventSpec => ({ source, payload, privacy, aggregation, model, retentionDays });
 
 const FEED = ['content_id', 'position', 'ranking_version', 'recommendation_id'];
+/** Outcome attribution (audit H9): outcome events may carry the recommendation they came from; joins are by (user, recommendation, content). */
+const REC = 'recommendation_id';
 
 export const EVENT_TAXONOMY = {
   session_started: b(['platform', 'app_version'], ['ops']),
@@ -38,48 +40,48 @@ export const EVENT_TAXONOMY = {
   watch_complete: b([...FEED, 'watched_ms'], ['engagement']),
   skip: b([...FEED, 'watched_ms', 'immediate'], ['engagement', 'quality']),
   replay: b(FEED, ['engagement']),
-  like: b(['content_id'], ['engagement']),
-  unlike: b(['content_id'], ['engagement']),
-  save: b(['content_id'], ['engagement']),
-  unsave: b(['content_id'], ['engagement']),
-  share: b(['content_id', 'channel'], ['engagement']),
+  like: b(['content_id', REC], ['engagement']),
+  unlike: b(['content_id', REC], ['engagement']),
+  save: b(['content_id', REC], ['engagement']),
+  unsave: b(['content_id', REC], ['engagement']),
+  share: b(['content_id', 'channel', REC], ['engagement']),
   follow: b(['creator_id'], ['engagement']),
   unfollow: b(['creator_id'], ['engagement']),
-  comment: b(['content_id', 'comment_id'], ['engagement']), // never the comment text
-  content_open: b(['content_id', 'from'], ['engagement']),
-  note_open: b(['content_id', 'concept_id'], ['engagement', 'learning']),
-  quiz_open: b(['content_id', 'quiz_id'], ['engagement', 'learning']),
+  comment: b(['content_id', 'comment_id', REC], ['engagement']), // never the comment text
+  content_open: b(['content_id', 'from', REC], ['engagement']),
+  note_open: b(['content_id', 'concept_id', REC], ['engagement', 'learning']),
+  quiz_open: b(['content_id', 'quiz_id', REC], ['engagement', 'learning']),
   question_answered: b(
-    ['question_id', 'attempt_id', 'response_ms', 'hints_used', 'attempt_no'],
+    ['question_id', 'attempt_id', 'response_ms', 'hints_used', 'attempt_no', REC],
     ['learning'],
     'count',
     'learning',
   ),
   answer_correct: b(
-    ['question_id', 'concept_id', 'response_ms'],
+    ['question_id', 'concept_id', 'response_ms', REC],
     ['learning', 'quality'],
     'count',
     'learning',
   ),
   answer_incorrect: b(
-    ['question_id', 'concept_id', 'response_ms'],
+    ['question_id', 'concept_id', 'response_ms', REC],
     ['learning', 'quality'],
     'count',
     'learning',
   ),
-  hint_used: b(['question_id', 'hint_no'], ['learning'], 'count', 'learning'),
-  confidence_submitted: b(['question_id', 'confidence'], ['learning'], 'count', 'learning'),
+  hint_used: b(['question_id', 'hint_no', REC], ['learning'], 'count', 'learning'),
+  confidence_submitted: b(['question_id', 'confidence', REC], ['learning'], 'count', 'learning'),
   flashcard_reviewed: b(['flashcard_id', 'grade'], ['learning'], 'count', 'learning', 365),
   review_completed: b(['concept_id', 'count'], ['learning'], 'count', 'learning', 365),
   concept_mastered: b(['concept_id', 'mastery'], ['learning'], 'latest', 'learning', 365),
   concept_reviewed: b(['concept_id'], ['learning'], 'count', 'learning', 365),
   interaction_completed: b(
-    ['content_id', 'kind', 'score', 'duration_ms'],
+    ['content_id', 'kind', 'score', 'duration_ms', REC],
     ['learning', 'engagement'],
     'count',
     'learning',
   ),
-  content_reported: b(['content_id', 'reason'], ['safety', 'quality'], 'count', 'safety', 730),
+  content_reported: b(['content_id', 'reason', REC], ['safety', 'quality'], 'count', 'safety', 730),
   creator_profile_opened: b(['creator_id'], ['engagement']),
   next_card_requested: b(['batch_size', 'ranking_version'], ['ops']),
 } as const satisfies Record<string, EventSpec>;

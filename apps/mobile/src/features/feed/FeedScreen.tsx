@@ -38,7 +38,11 @@ function Social({ item }: { item: FeedItem }) {
       : supabase.from(table).insert({ user_id: uid, content_id: item.contentId });
     const { error } = await q;
     if (error) set(on);
-    else track(on ? undo : ev, { content_id: item.contentId });
+    else
+      track(on ? undo : ev, {
+        content_id: item.contentId,
+        recommendation_id: item.recommendationId,
+      });
   };
   return (
     <View style={{ flexDirection: 'row', gap: space.sm }}>
@@ -68,7 +72,13 @@ function CardBody({
   const body = item.body as Body;
   switch (item.type) {
     case 'question':
-      return <QuestionCard contentId={item.contentId} body={body as never} />;
+      return (
+        <QuestionCard
+          contentId={item.contentId}
+          recommendationId={item.recommendationId}
+          body={body as never}
+        />
+      );
     case 'note':
       return <NoteCard body={body as never} />;
     case 'flashcard':
@@ -99,7 +109,7 @@ export function FeedScreen() {
   const [exhausted, setExhausted] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const fetching = useRef(false);
-  const enteredAt = useRef<{ id: string; at: number } | null>(null);
+  const enteredAt = useRef<{ id: string; at: number; rec: string } | null>(null);
 
   const load = useCallback(async () => {
     if (fetching.current) return;
@@ -133,11 +143,21 @@ export function FeedScreen() {
     if (prev && prev.id !== v.item.contentId) {
       const watched = now - prev.at;
       if (watched < 1500)
-        track('skip', { content_id: prev.id, watched_ms: watched, immediate: true });
-      else track('content_visible', { content_id: prev.id, visible_ms: watched });
+        track('skip', {
+          content_id: prev.id,
+          recommendation_id: prev.rec,
+          watched_ms: watched,
+          immediate: true,
+        });
+      else
+        track('content_visible', {
+          content_id: prev.id,
+          recommendation_id: prev.rec,
+          visible_ms: watched,
+        });
     }
     if (!prev || prev.id !== v.item.contentId) {
-      enteredAt.current = { id: v.item.contentId, at: now };
+      enteredAt.current = { id: v.item.contentId, at: now, rec: v.item.recommendationId };
       track('feed_impression', {
         content_id: v.item.contentId,
         position: v.item.position,

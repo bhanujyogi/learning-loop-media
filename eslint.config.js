@@ -11,4 +11,10 @@ export default tseslint.config(
       'no-console': 'warn',
     },
   },
+  {
+    // Node CLI scripts: plain ESM with Node globals; console output is their interface.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: { globals: { process: 'readonly', console: 'readonly', fetch: 'readonly' } },
+    rules: { 'no-console': 'off' },
+  },
 );

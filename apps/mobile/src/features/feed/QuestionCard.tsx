@@ -35,7 +35,15 @@ const SUPPORTED = [
  * Answers are graded SERVER-SIDE. The client only ever holds the public body (no answer key, no explanation);
  * the explanation arrives with the grading response.
  */
-export function QuestionCard({ contentId, body }: { contentId: string; body: PublicQuestion }) {
+export function QuestionCard({
+  contentId,
+  recommendationId,
+  body,
+}: {
+  contentId: string;
+  recommendationId?: string;
+  body: PublicQuestion;
+}) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const started = useRef(Date.now());
@@ -89,6 +97,7 @@ export function QuestionCard({ contentId, body }: { contentId: string; body: Pub
         response: buildResponse(),
         responseMs: Date.now() - started.current,
         hintsUsed: hints,
+        recommendationId,
         idempotencyKey: key.current,
       });
       setRes(r);
@@ -165,7 +174,11 @@ export function QuestionCard({ contentId, body }: { contentId: string; body: Pub
           label={hints ? `Hint: ${body.hint}` : 'Show hint'}
           onPress={() =>
             setHints((h) => {
-              track('hint_used', { question_id: contentId, hint_no: h + 1 });
+              track('hint_used', {
+                question_id: contentId,
+                hint_no: h + 1,
+                recommendation_id: recommendationId,
+              });
               return h + 1;
             })
           }

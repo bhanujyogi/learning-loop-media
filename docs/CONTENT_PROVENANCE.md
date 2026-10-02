@@ -15,3 +15,5 @@ Every externally derived or generated official object can answer: _where from, w
 
 Provenance is never deleted when content is unpublished or archived. Admin → _Content → detail_ renders versions, provenance, sources and gate results for inspection.
 User-generated content records creator/owner/uploader and timestamps; provenance rows are optional for it.
+
+**Gate–content binding (audit C2):** `quality_gate_results.content_hash` = `app.version_hash(version)` assigned by the database at write time and re-checked at publish. The publish audit entry records the hash that was published.

@@ -26,3 +26,8 @@ Sandbox note: `expo install`/docs.expo.dev were blocked by egress policy; versio
 ## Cost posture
 
 Free tiers first (Supabase, Vercel/Netlify for admin), no paid AI, Storage via Supabase until volume justifies R2 behind `StorageProvider`.
+
+## Database roles for server-side code (audit H6)
+
+Migration 15 creates `app_server` and `app_jobs`. The Edge runtime does `SET LOCAL ROLE` per transaction. For a hard barrier create a dedicated login role out-of-band, e.g. `create role app_server_login login password '<generated>' in role app_server noinherit;`, keep the password in Supabase secrets, and set `APP_DB_URL` (the runtime prefers it over `SUPABASE_DB_URL`). Not verified on hosted Supabase.
+Verify Edge Function module resolution without Supabase: `DENO=$(which deno) REQUIRE_DENO=1 node scripts/check-edge-functions.mjs` (also run in CI).

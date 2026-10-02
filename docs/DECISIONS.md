@@ -66,3 +66,13 @@ Format: Date · Problem · Options · Decision · Why · Trade-offs · Reconside
 ## 2026-10-01 — Dependency pins
 
 - `typescript ~5.9` in root, packages and admin (the Expo template pins ~6.0 for the mobile app, which typechecks cleanly); `vitest ^3.2` (5.x exists; no need yet); Expo packages pinned from `expo/bundledNativeModules.json` because `expo install` could not reach Expo's API from the sandbox.
+
+## 2026-10-02 — Audit remediation decisions
+
+- **Gates bound to content by a database-computed hash (C2).** Options: lock the draft while gating; trust a validator-supplied hash; compute the hash in the DB and compare at publish. Chose the third: the validator cannot lie, any edit (even metadata/provenance/links) fails closed, no workflow state to manage. Trade-off: re-validation after every edit (intended). Also: checker ≠ author/uploader/identity member.
+- **Reports weighted by account age; never auto-hide official/approved content (H3).** Kept auto-flagging (abuse of the report button must not be free _and_ real brigading must not be free either): weight 0.2 for accounts < 7 days, threshold 3.0, escalate instead of hide for official/cleared. Reconsider with real abuse data (add reporter reputation).
+- **Anti-farming via evidence discount + XP rules, not by blocking retries (H4).** Learners legitimately retry; attempts are recorded, but repeats within 24 h carry decaying evidence (1, .25, .1, .05, 0), no ability/FSRS/feature updates, one XP award per question+action per UTC day, 400 XP/day cap. Reconsider the factors with data.
+- **Least-privilege DB roles via `SET LOCAL ROLE` (H6).** Options: Supabase service key through PostgREST; privileged `postgres` connection (rejected: bypasses RLS/guards); dedicated login role per function; `SET LOCAL ROLE` from the platform connection. Chose `app_server`/`app_jobs` with explicit grants/policies, applied per transaction, plus an optional dedicated login role (`APP_DB_URL`) as the hard barrier. Honest limit: without the login role the downgrade is a convention.
+- **Row lock instead of per-dimension tables (H8).** The feature document stays a JSON blob under `SELECT … FOR UPDATE`; simpler and sufficient at MVP concurrency (one lock per learner). Reconsider if feed latency suffers from lock waits.
+- **Explicit `.ts` import specifiers (H7).** Options: bundle functions with esbuild; Deno sloppy-imports (not available to the hosted runtime); explicit extensions. Chose explicit extensions: no build step, works in Deno/Metro/Next/Vitest/tsc (all re-verified).
+- **DB-authoritative ranking config with code fallback (H9).** Immutable once active, validated on load, fallback recorded on every recommendation.

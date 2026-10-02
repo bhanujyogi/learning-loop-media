@@ -39,3 +39,11 @@ Admin → Recommendations shows them per learner/request. "Why excluded" reasons
 ## Not yet
 
 Collaborative filtering/global aggregate models, delayed-recall-based learning-gain targets, creator-level learning stats, diversity across difficulty, trending quality filter, offline evaluation harness.
+
+## Trainable logging & authoritative configuration (audit H9)
+
+- **Authoritative config:** `ranking_versions.algorithm` (weights, explorationRatio, repetition, diversity, batchSize) is loaded and **validated** (`parseRankingConfig`: exact keys, bounded finite numbers, weights sum to 1) on every request. It is immutable once the version leaves `draft`; status transitions are constrained (draft→active→retired) and audited; one active version (partial unique index). The code constant `RANKING_V1` is the migration's seed value and a **fail-safe fallback** only — used when the DB has no valid active version, and then recorded as `ranking_config.source='fallback'` + reason (never silent). `ranking_v1` in the DB equals the code constant (parity-tested).
+- **Per recommendation** (`recommendations`): resolved config snapshot, `features_version`, compact `feature_snapshot` (ability, frustration, fatigue, exam pressure, counts, top affinities), `candidate_count`, `policy` (selection scheme, exploration ratio/slots, seed), experiment + variant.
+- **Per item** (`recommendation_items`): score, signed `why_shown`, `decision` (`exploit` greedy | `explore` sampled), `propensity` (explore: 1/|sampling pool|; exploit: 1). Caveat: propensity is conditional on the state at that step and ignores the diversity-rejection step; exploit items are deterministic given state (probability 1), so off-policy estimation of exploit behaviour needs the exploration data.
+- **Candidate log** (`recommendation_candidates`, ≤ 50 top by score + every selected item): rank, score, sources, selected flag, score components.
+- **Outcomes:** `recommendation_outcomes` view (impressions, completes, likes, saves, shares, skips, immediate skips, answered, correct, incorrect per served item). Together this is the (context, action, propensity, reward) tuple set a contextual bandit / learned ranker needs. Not yet built: the training/evaluation job and reward definition.

@@ -24,5 +24,9 @@
 
 ## Known gaps (tracked in PROJECT_STATUS.md)
 
-Edge Functions not exercised against a real Supabase; no CAPTCHA/auth-attempt rate limiting beyond Supabase Auth defaults; no malware scanning; no dependency-audit gate failing CI yet;
+Edge Functions verified only under a real Deno runtime (module resolution + auth gates, `scripts/check-edge-functions.mjs`), **not** against the Supabase CLI/Edge Runtime or a database; the dedicated login role for `app_server` (`APP_DB_URL`) is documented but not provisioned; no CAPTCHA/auth-attempt rate limiting beyond Supabase Auth defaults; no malware scanning; no dependency-audit gate failing CI yet;
 `user_progress`/`user_achievements` are intentionally readable by any authenticated user (public XP/level/badges) — revisit if privacy requirements change.
+
+## Audit remediation (2026-10-02)
+
+Fixed and regression-tested: conversation-membership re-pointing (C1), gate/content binding + author independence (C2), moderation reset on edits (H1), client event injection (H2), report brigading (H3), XP/mastery farming (H4), single-user quality signals (H5), privileged service connection (H6), learner-feature lost updates (H8, real-Postgres test), Deno module resolution (H7, real Deno), recommendation logging/authoritative config (H9). See `PROJECT_STATUS.md` for what is still open (e.g. mobile `supabase.storage` direct calls, RLS per-row `auth.uid()` cost, unused native dependencies) and what only a real Supabase environment can verify.

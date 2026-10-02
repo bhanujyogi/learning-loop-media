@@ -1,8 +1,15 @@
 import { createHash } from 'node:crypto';
-import { getRankingConfig, RANKING_V1, type RankingConfig } from '@learning-loop/config';
-import type { FormatType, HookType } from '@learning-loop/shared';
+import {
+  parseRankingConfig,
+  rankingAlgorithmOf,
+  RANKING_V1,
+  type RankingConfig,
+} from '@learning-loop/config';
+import { log, type FormatType, type HookType } from '@learning-loop/shared';
 import {
   effective,
+  FEATURES_VERSION,
+  snapshotFeatures,
   rankFeed,
   recordImpression,
   type Candidate,
@@ -87,10 +94,33 @@ export const bucket = (userId: string, key: string): number =>
   parseInt(createHash('sha256').update(`${userId}:${key}`).digest('hex').slice(0, 8), 16) /
   0xffffffff;
 
-export async function resolveRanking(
-  sql: Sql,
-  userId: string,
-): Promise<{ config: RankingConfig; experimentId: string | null; variant: string | null }> {
+export interface ResolvedRanking {
+  config: RankingConfig;
+  experimentId: string | null;
+  variant: string | null;
+  /** 'db' = loaded from ranking_versions (authoritative); 'fallback' = built-in RANKING_V1 because the DB had no valid active row. */
+  source: 'db' | 'fallback';
+  fallbackReason?: string;
+}
+
+/** Loads + validates a ranking version from the database (the authoritative store). Throws if missing/invalid/retired. */
+async function loadRankingVersion(sql: Sql, version: string): Promise<RankingConfig> {
+  const row = (
+    await sql.query<{ algorithm: unknown }>(
+      `select algorithm from ranking_versions where version = $1 and status in ('draft','active')`,
+      [version],
+    )
+  )[0];
+  if (!row) throw new Error(`ranking version ${version} is not available`);
+  return parseRankingConfig(version, row.algorithm);
+}
+
+/**
+ * Resolution order: running experiment variant → the single active ranking version. The configuration comes from the
+ * database row (validated); the built-in RANKING_V1 is only a fail-safe when the DB has no valid active version, and the
+ * fallback is recorded on the recommendation so it is never silent.
+ */
+export async function resolveRanking(sql: Sql, userId: string): Promise<ResolvedRanking> {
   const exps = await sql.query<{
     id: string;
     key: string;
@@ -125,9 +155,17 @@ export async function resolveRanking(
     const rv = e.variants.find((v) => v.name === a)?.ranking_version;
     if (rv) {
       try {
-        return { config: getRankingConfig(rv), experimentId: e.id, variant: a };
-      } catch {
-        /* unknown version: fall through */
+        return {
+          config: await loadRankingVersion(sql, rv),
+          experimentId: e.id,
+          variant: a,
+          source: 'db',
+        };
+      } catch (err) {
+        log.warn('experiment ranking version unusable; falling through', {
+          version: rv,
+          error: (err as Error).message,
+        });
       }
     }
   }
@@ -137,13 +175,23 @@ export async function resolveRanking(
     )
   )[0]?.version;
   try {
+    if (!active) throw new Error('no active ranking version');
     return {
-      config: active ? getRankingConfig(active) : RANKING_V1,
+      config: await loadRankingVersion(sql, active),
       experimentId: null,
       variant: null,
+      source: 'db',
     };
-  } catch {
-    return { config: RANKING_V1, experimentId: null, variant: null };
+  } catch (err) {
+    const reason = (err as Error).message;
+    log.warn('using built-in ranking fallback', { error: reason });
+    return {
+      config: RANKING_V1,
+      experimentId: null,
+      variant: null,
+      source: 'fallback',
+      fallbackReason: reason,
+    };
   }
 }
 
@@ -158,7 +206,10 @@ export async function getFeed(sql: Sql, req: FeedRequest): Promise<FeedResponse>
 
 async function getFeedInTx(sql: Sql, req: FeedRequest): Promise<FeedResponse> {
   const now = req.now ?? Date.now();
-  const { config, experimentId, variant } = await resolveRanking(sql, req.userId);
+  const { config, experimentId, variant, source, fallbackReason } = await resolveRanking(
+    sql,
+    req.userId,
+  );
   // `limit` comes from an HTTP query string: coerce defensively (NaN/negative/huge → bounded; default = ranking batch size)
   const requested = Number(req.limit);
   const cfg: RankingConfig =
@@ -335,23 +386,54 @@ async function getFeedInTx(sql: Sql, req: FeedRequest): Promise<FeedResponse> {
 
   const rec = (
     await sql.query<{ id: string }>(
-      `insert into recommendations(user_id, ranking_version, experiment_id, variant, seed, diagnostics) values ($1,$2,$3,$4,$5,$6::jsonb) returning id`,
+      `insert into recommendations(user_id, ranking_version, experiment_id, variant, seed, diagnostics, ranking_config, features_version, feature_snapshot, candidate_count, policy)
+       values ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9::jsonb,$10,$11::jsonb) returning id`,
       [
         req.userId,
         result.rankingVersion,
         experimentId,
         variant,
-        req.seed ?? now,
+        result.policy.seed,
         JSON.stringify({ ...result.diagnostics, excluded: result.excluded.slice(0, 50) }),
+        JSON.stringify({
+          version: cfg.version,
+          source,
+          fallback_reason: fallbackReason ?? null,
+          ...rankingAlgorithmOf(cfg),
+        }),
+        FEATURES_VERSION,
+        JSON.stringify(snapshotFeatures(f, now)),
+        candidates.length,
+        JSON.stringify(result.policy),
       ],
     )
   )[0]!.id;
+  // bounded candidate log (top-N by score + every selected item) with signed score components
+  await sql.query(
+    `insert into recommendation_candidates(recommendation_id, content_id, rank, score, sources, is_exploration, selected, contributions)
+     select $1, x.content_id, x.rank, x.score, array(select jsonb_array_elements_text(x.sources)), x.is_exploration, x.selected, x.contributions
+       from jsonb_to_recordset($2::jsonb) as x(content_id uuid, rank int, score real, sources jsonb, is_exploration boolean, selected boolean, contributions jsonb)`,
+    [
+      rec,
+      JSON.stringify(
+        result.candidates.map((c) => ({
+          content_id: c.contentId,
+          rank: c.rank,
+          score: c.score,
+          sources: c.sources,
+          is_exploration: c.isExploration,
+          selected: c.selected,
+          contributions: c.contributions,
+        })),
+      ),
+    ],
+  );
   const byId = new Map(candidates.map((c) => [c.contentId, c]));
   const rows = new Map([...pool.values()].map((p) => [p.row.id, p.row]));
   const items: FeedItem[] = [];
   for (const it of result.items) {
     await sql.query(
-      `insert into recommendation_items(recommendation_id, content_id, position, score, is_exploration, sources, why_shown) values ($1,$2,$3,$4,$5,$6::text[],$7::jsonb)`,
+      `insert into recommendation_items(recommendation_id, content_id, position, score, is_exploration, sources, why_shown, decision, propensity) values ($1,$2,$3,$4,$5,$6::text[],$7::jsonb,$8,$9)`,
       [
         rec,
         it.contentId,
@@ -360,6 +442,8 @@ async function getFeedInTx(sql: Sql, req: FeedRequest): Promise<FeedResponse> {
         it.isExploration,
         it.sources,
         JSON.stringify(it.whyShown),
+        it.decision,
+        it.propensity,
       ],
     );
     const r = rows.get(it.contentId)!;

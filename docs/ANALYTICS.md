@@ -31,3 +31,9 @@ Audit log is retained indefinitely.
 ## Scale path
 
 Supabase tables now → partition `events` by month → ship to a warehouse when volume justifies. Boundaries (`recordEvents`, aggregation jobs) already isolate this.
+
+## Hardening (audit H2/H5/H9)
+
+- **Write path:** clients have no INSERT policy or privilege on `events`; only `recordEvents`/`submitAnswer` (as the least-privileged `app_server` role) write, always through `sanitizeEvent`. Forged skip/save/answer events through the database API are no longer possible.
+- **Distinct learners:** `aggregateContentQuality` uses each learner's _first_ attempt, distinct viewers/skippers/savers and weighted distinct reporters; thresholds are 20 learners / 30 viewers / report weight 3.0. One user's repeated attempts or events are one data point.
+- **Outcome attribution:** outcome events may carry `recommendation_id` (taxonomy keys updated). `recommendation_outcomes` (staff-only, `security_invoker`) joins by user + recommendation + content/question id, so one user cannot attribute outcomes to another's recommendation. Indexed on `events((payload->>'recommendation_id'))` and `((payload->>'content_id'), name, created_at)`.

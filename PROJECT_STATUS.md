@@ -1,32 +1,34 @@
 # PROJECT_STATUS
 
-_Last updated: 2026-10-01 (session 1). Read this first; then `CLAUDE.md`; then `docs/ROADMAP.md`._
+_Last updated: 2026-10-02 (security remediation milestone). Read this first; then `CLAUDE.md`; then `docs/ROADMAP.md`._
 
 ## Summary
 
-A working, tested **foundation**: shared domain, learning + recommendation + content engines, a 13-migration Supabase schema with RLS and guard logic,
+A working, tested **foundation**: shared domain, learning + recommendation + content engines, a 16-migration Supabase schema with RLS and guard logic,
 server-side services that close the learn→model→feed loop, a mobile app (bundles), an admin app (builds), Edge Function wrappers, local-AI abstraction, and a full docs set.
 It is a foundation for a product, **not a finished product**: see "Not verified" and "Not built".
 
 ## Verified (by running it in this environment)
 
-| Check                                          | Result                                                                                                                                                                                                         |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm typecheck` / `pnpm lint`                 | clean                                                                                                                                                                                                          |
-| `pnpm test`                                    | 177 tests pass across 9 workspaces                                                                                                                                                                             |
-| Migrations on real Postgres semantics (PGlite) | all 13 apply; RLS enabled on every public table; anon has no privileges                                                                                                                                        |
-| Security suite                                 | ~40 scenarios incl. privilege escalation, ownership forgery, direct publish, answer-key access, official-publish gating, gate forgery, moderation, blocks/messaging bypass, rate limits, learner-state forging |
-| End-to-end loop (`database/test/loop.test.ts`) | onboarding → feed → graded answer → mastery/FSRS/XP/features → next feed prioritises weak concept; idempotent; events can't forge mastery                                                                      |
-| Admin                                          | `next build` succeeds (11 routes)                                                                                                                                                                              |
-| Mobile                                         | `tsc` clean; `expo export --platform android` produces a Hermes bundle (Metro resolves the pnpm workspace); logic tests pass                                                                                   |
+| Check                                               | Result                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm typecheck` / `pnpm lint` / `prettier --check` | clean                                                                                                                                                                                                                                                                  |
+| `pnpm test`                                         | **234 tests pass** across 10 workspaces                                                                                                                                                                                                                                |
+| Migrations                                          | all 16 apply on PGlite **and on a real PostgreSQL 16 cluster** (concurrency suite); RLS enabled on every public table; `anon` has no privileges                                                                                                                        |
+| Security / regression suites                        | 41 original security tests + `remediation` (C1, C2, H1, H2, H3, medium) + `integrity` (H4, H5, H6) + `recommendation-logging` (H9). Each audit attack has a regression test; those that exercise changed code were run against the old implementation and failed there |
+| **Concurrency (H8)**                                | real multi-connection PostgreSQL 16: 12 concurrent event batches and feed/answer/event races lose no updates; **fails 3/3 without `FOR UPDATE`**; stable over 5 consecutive runs with it                                                                               |
+| **Edge Functions (H7)**                             | real **Deno 2.9.6**: `deno check` + start/probe of all 5 functions (module resolution via the import map, auth gates, jobs secret). Previously `deno check` failed on extensionless imports                                                                            |
+| End-to-end loop                                     | onboarding → feed → graded answer → mastery/FSRS/XP/features → next feed — now executed under the least-privileged `app_server` role                                                                                                                                   |
+| Admin / Mobile builds                               | `next build` passes; `expo export --platform android` produces a Hermes bundle; the bundle contains no server-secret variable names. No service-role/DB-URL reference exists in `apps/`                                                                                |
 
 ## NOT verified (honest list)
 
-- **Supabase CLI/Docker stack never ran** (not available in the sandbox). Real GoTrue, Realtime, Storage service, PostgREST column/RPC behaviour are untested; the PGlite harness stubs `auth.uid()` and `storage`.
-- **Edge Functions (`supabase/functions/*`, including `jobs`) never executed** (no Deno). They are thin; the logic they call is tested. Import-map paths and `postgres` driver wiring may need adjustment.
-- **Mobile app never ran on a device/simulator**; UI, gestures, haptics, video playback, SecureStore adapter, NetInfo flush, safe-area layout are unexercised. `npx expo-doctor` not run. No component/E2E tests.
-- `expo install` and docs.expo.dev were blocked by the sandbox egress policy; Expo package versions were taken from `expo/bundledNativeModules.json` (SDK 57).
-- Performance claims (low-end Android, query plans at scale, feed latency) are **design intent only**; no profiling yet.
+- **Supabase CLI/Docker stack never ran.** Real GoTrue, Realtime, Storage service, PostgREST (RPC/column behaviour) and hosted-Postgres role/privilege behaviour are untested. PGlite stubs `auth.uid()`; the real-Postgres test uses the same stub, so it proves Postgres concurrency/semantics, **not Supabase**.
+- **Edge Functions on the Supabase Edge Runtime** are unverified. They load and serve under real Deno, but they have never executed against a database or Supabase Auth (`getUser`), and the `postgres` driver + `SET LOCAL ROLE` path in `supabase/functions/_shared/runtime.ts` has never connected to anything.
+- **Dedicated login role for `app_server` (`APP_DB_URL`)** is documented, not provisioned. Until then the privilege downgrade is a convention (see AUTHORIZATION.md). Whether `postgres` on hosted Supabase may `SET ROLE app_server` after `grant app_server to current_user` is unverified.
+- **Mobile app never ran on a device/simulator**; UI, gestures, haptics, video, SecureStore adapter, NetInfo flush are unexercised; `npx expo-doctor` not run; no component/E2E tests.
+- `expo install` and docs.expo.dev were blocked by the sandbox egress policy; Expo package versions come from `expo/bundledNativeModules.json` (SDK 57).
+- Performance claims (low-end Android, query plans at scale, feed latency with the new row lock and candidate log writes) are design intent only; no profiling.
 - Dependency vulnerability audit not run as a gate.
 
 ## Not built (by milestone — details in docs/ROADMAP.md)
@@ -61,57 +63,39 @@ Single `pipeline_jobs` table (not three); admin runs as the staff user (no servi
 - `user_progress`/`user_achievements` are readable by any authenticated user (intentional public gamification).
 - Vitest pinned to ^3.2 (5.x exists); TypeScript ~5.9 in packages (mobile template uses ~6.0).
 
-## Architectural & security audit — 2026-10-01 (completed; remediation NOT started)
+## Audit remediation — 2026-10-02 (CRITICAL + HIGH done; some MEDIUM done)
 
-**Do not build new features until the CRITICAL/HIGH items below are fixed.** P# = reproduced with a throwaway PGlite probe (not committed).
+Audit findings recorded 2026-10-01 were fixed in the order requested. "Regression test" = reproduces the original attack and fails on the old implementation unless noted.
 
-CRITICAL
+| ID  | Status | Fix (files)                                                                                                                                                                                                                                                                                                       | Verified how                                                                                              |
+| --- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| C1  | fixed  | `guard_member_update` trigger: membership identity fields immutable; server-assigned message timestamps (`…000001_security_remediation.sql`)                                                                                                                                                                      | regression test, fails on old schema                                                                      |
+| C2  | fixed  | `app.version_hash` + gate guard + `publish_content` requires hash equality; checker ≠ author/uploader/identity member (`…000001`)                                                                                                                                                                                 | 4 regression tests (body/metadata/provenance edits, independence, hash can't be forged)                   |
+| H1  | fixed  | material edits / new versions of cleared user content → `pending_review`; trusted creators keep clearance (`guard_content_update`, `publish_content`); staff creator-trust policy                                                                                                                                 | 4 tests incl. negative controls                                                                           |
+| H3  | fixed  | weighted reports (account age), escalation not auto-hide for official/cleared (`on_report_insert`, `moderation_cases.escalated/priority`)                                                                                                                                                                         | 4 tests                                                                                                   |
+| H2  | fixed  | `events_insert` policy and INSERT privilege removed; only the sanitising server path writes events                                                                                                                                                                                                                | regression test                                                                                           |
+| H4  | fixed  | `repeatFactor`/`Evidence.scale`; repeats don't move ability/FSRS/features; 1 XP award per question+action per UTC day; `XP_CONFIG.dailyXpCap` enforced (`learning-engine`, `services/learning.ts`)                                                                                                                | 5 integration + 3 unit tests                                                                              |
+| H5  | fixed  | quality job on distinct learners/viewers/weighted reporters (`jobs/index.ts`)                                                                                                                                                                                                                                     | 3 tests                                                                                                   |
+| H6  | fixed* | roles `app_server`/`app_jobs` (no BYPASSRLS), explicit grants + role-scoped policies, published-only content, `asUser` binds the verified user; Edge runtime uses `SET LOCAL ROLE` (`…000002_service_roles.sql`, `sql.ts`, `_shared/runtime.ts`). *Hard barrier needs the dedicated login role (not provisioned). | 6 tests; every service test now runs under the roles                                                      |
+| H8  | fixed  | `loadFeatures` = insert-if-absent + `SELECT … FOR UPDATE`, throws outside a transaction; every service runs in one transaction                                                                                                                                                                                    | real-PostgreSQL concurrency tests (fail 3/3 without the lock)                                             |
+| H7  | fixed* | 67 relative specifiers made explicit (`.ts`), `allowImportingTsExtensions`; `scripts/check-edge-functions.mjs`; CI steps. *Verified under real Deno only — **not** on the Supabase Edge Runtime.                                                                                                                  | `deno check` failed before (reproduced), passes after; functions serve; tsc/Vitest/Next/Metro re-verified |
+| H9  | fixed  | DB-authoritative validated ranking config (immutable once active, audited), config/feature snapshots, policy, candidate log, per-item decision + propensity, `recommendation_outcomes` view, indexes (`…000003_recommendation_logging.sql`, `feed.ts`, `rank.ts`, `config`)                                       | 9 DB tests + 4 engine + 4 config tests                                                                    |
 
-- C1 (P1) `conversation_members` update policy lets a member move their row's `conversation_id` into any conversation and read its DMs (`20260101000010_messaging.sql`).
-- C2 (P2) An official draft's body, answer key or provenance can be edited after the quality gates pass, and still publishes. Gate results aren't tied to a content hash (`…05_content_security.sql`, `…06`).
+Medium items also fixed: random public handles (no email leakage), reserved usernames, `is_creator` staff-managed, media-asset guard, moderators can't read other users' drafts, rate-limit race (advisory lock), feed `limit` NaN/negative/huge coercion, vacuous security-test assertions replaced, service role limited to published content/answer keys.
 
-HIGH
+### Remaining (not fixed in this milestone)
 
-- H1 (P3) A new version or a title/summary edit on `cleared` user content stays `cleared`, which bypasses moderation (`publish_content`, content update guard).
-- H2 (P4) Direct PostgREST `events` inserts bypass the taxonomy sanitiser. They allow arbitrary payload/PII and forged skip/save events that feed `aggregateContentQuality` and the ranking quality score.
-- H3 (P5) Three throwaway accounts can auto-hide any content, including official content (`on_report_insert`).
-- H4 (P6) XP farming and mastery inflation: `submitAnswer` gives unlimited re-attempts, reveals the answer, has no per-question/day cap, and `dailyXpCap` isn't enforced.
-- H5 (P7) One user can flag content `needs_revision`, because quality thresholds count attempts and events instead of distinct learners (`jobs/index.ts`).
-- H6 Edge Functions run on a privileged DB connection where every guard is skipped (`auth.uid() is null`). This contradicts AUTHORIZATION.md. A dedicated least-privilege DB role is needed.
-- H7 (inferred) Edge Functions likely fail to resolve in Deno: workspace packages use extensionless relative imports and paths outside `supabase/functions`.
-- H8 (inferred) `user_features` uses a read-modify-write of one JSON blob with no row lock (`getFeed` isn't even in a transaction), so concurrent feed/answer/events requests lose updates.
-- H9 Recommendation logs can't support off-policy learning or bandits: there is no propensity, no logged candidate set or feature vector, and outcome events don't carry `recommendation_id`. `ranking_versions.algorithm` is ignored (weights come from code).
+- **MEDIUM:** mobile app calls `supabase.storage` directly (bypasses `StorageProvider`); RLS policies call `auth.uid()` per row (wrap as `(select auth.uid())` after measuring); exploration query sorts the catalogue by `md5` per request and `BASE` has correlated subqueries; per-subject ability and decay refresh only on answers; seen-set cap (500) lets content repeat; unbounded per-creator affinity map; no outbound licence/attribution display; syllabus tree is global (not per exam); `@learning-loop/database` mixes client/services/jobs/media; moderators' `analytics.read`-style cross-user views need dedicated views.
+- **LOW:** mobile like/save initial state, side effect inside a setState updater, `session!` assertions, fixed page-height guess, unused native deps (`expo-notifications`, `expo-image`, `expo-font`, `expo-splash-screen`), `appealed` state never set, admin CSP allows `'unsafe-inline'`, two TypeScript majors.
+- **Design caveats introduced/kept:** XP mastery bonus can re-fire after decay (bounded by the daily cap); report weights are a heuristic (7-day / 0.2 / 3.0) pending real abuse data; propensities ignore the diversity-rejection step and exploit items have p=1 (exploration data is what makes off-policy evaluation possible); the training/evaluation job and reward definition for learned ranking are not built.
 
-MEDIUM
+### Requires a real Supabase environment to verify
 
-- (P8) Username is derived from the email local-part and is public (PII). Users can self-set confusable usernames and `is_creator`.
-- (P9) Members can self-set `member_role='admin'` (latent group-chat escalation). Senders can rewrite `created_at`.
-- (P10) `moderation.review` can read every private draft.
-- (P11) Clients can create `media_assets` rows pointing at another user's storage key or another user's content. The future finaliser must verify this.
-- The mobile app calls `supabase.storage` directly, which bypasses `StorageProvider`.
-- The same identity can both author and gate content: `quality_gate_results.checked_by` is unused and unenforced.
-- No attribution display and no outbound licence (CC BY-SA) on content.
-- Learner ability is a single global scalar, and concept needs/decay are only refreshed on answer.
-- Seen-set cap of 500 brings content back. Creator affinity map is unbounded.
-- Exploration query sorts the whole catalogue by `md5` per request, and `BASE` has correlated subqueries per row. RLS calls `auth.uid()` per row without the `(select …)` wrapper.
-- The quality job scans `events.payload->>'content_id'` with no index.
-- Syllabus trees aren't per-exam (each concept sits under exactly one global topic).
-- The `@learning-loop/database` package mixes client, services, jobs and media.
-- Docs overstate integrity guarantees (AUTHORIZATION/ANALYTICS/learner-integrity claims).
-
-LOW
-
-- Feed `limit` set to non-numeric gives NaN, which returns an empty feed.
-- Mobile: the like/save initial state isn't loaded, there's a side effect inside a setState updater, `session!` assertions, a guessed fixed page height, and no scrolling inside cards.
-- Unused native dependencies (`expo-notifications`, `expo-image`, `expo-font`, `expo-splash-screen`).
-- 4 vacuous test assertions (`.catch(() => undefined)` / `Actor.prototype` in `security.test.ts`).
-- Rate-limit count-then-insert race. Admin CSP allows `'unsafe-inline'`. `appealed` state is never set. Two TypeScript majors (5.9 / 6.0).
-
-Remediation order: C1 → C2 → H1 → H3 → H2 → H4/H5 → H6 → H8 → H7 (verify on a real Supabase CLI) → H9 → MEDIUM → LOW. Add a regression test for each probe.
+Edge Functions on the Supabase Edge Runtime (JWT verification with `getUser`, `postgres` driver, `SET LOCAL ROLE` from the platform connection, `APP_DB_URL` login role); PostgREST RPC/column behaviour of the new triggers/policies (e.g. `publish_content`, `start_direct_conversation`, view `recommendation_outcomes` with `security_invoker`); Realtime on `messages` under RLS; Storage policies; hosted Postgres 15 differences from the PG 16/17 used in tests; pg_cron scheduling of the jobs function.
 
 ## Suggested next session
 
-0. **Remediate the audit findings above first (CRITICAL → HIGH), each with a regression test.**
+0. Stand up a real Supabase environment and verify everything listed under “Requires a real Supabase environment” before building features.
 
 1. `supabase start`, apply migrations+seed, serve functions, point the mobile app/admin at it; fix integration drift; add a Supabase-local CI job.
 2. Run the mobile app on a real device; fix layout/gesture issues; add Maestro E2E for sign-up→onboarding→feed→answer.

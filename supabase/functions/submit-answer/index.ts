@@ -14,6 +14,7 @@ Deno.serve(async (req) => {
       responseMs: b.responseMs,
       hintsUsed: b.hintsUsed,
       confidence: b.confidence,
+      recommendationId: typeof b.recommendationId === 'string' ? b.recommendationId : undefined,
       idempotencyKey:
         typeof b.idempotencyKey === 'string' ? b.idempotencyKey.slice(0, 100) : undefined,
     });

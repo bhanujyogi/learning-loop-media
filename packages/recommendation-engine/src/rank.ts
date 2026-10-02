@@ -4,6 +4,7 @@ import { scoreCandidate } from './scoring.ts';
 import { sequenceBatch } from './sequence.ts';
 import type {
   Candidate,
+  CandidateLog,
   Exclusion,
   FeedResult,
   LearnerFeatures,
@@ -56,6 +57,8 @@ export function selectBatch(
   scored: ScoredCandidate[],
   cfg: RankingConfig,
   rng: () => number,
+  /** Optional sink: records how each chosen candidate was selected (decision + propensity) for logging. */
+  decisions?: Map<ScoredCandidate, { decision: 'exploit' | 'explore'; propensity: number }>,
 ): ScoredCandidate[] {
   const size = cfg.batchSize;
   const explorationSlots = Math.round(size * cfg.explorationRatio);
@@ -93,13 +96,19 @@ export function selectBatch(
     const top = pool.slice(0, Math.max(3, Math.ceil(pool.length / 2)));
     const pick = top[Math.floor(rng() * top.length)]!;
     pool.splice(pool.indexOf(pick), 1);
-    if (fits(pick, false)) take(pick);
+    if (fits(pick, false)) {
+      take(pick);
+      decisions?.set(pick, { decision: 'explore', propensity: 1 / top.length });
+    }
   }
   for (const relax of [false, true]) {
     for (const s of byScore) {
       if (chosen.length >= size) break;
       if (chosen.includes(s)) continue;
-      if (fits(s, relax)) take(s);
+      if (fits(s, relax)) {
+        take(s);
+        decisions?.set(s, { decision: 'exploit', propensity: 1 });
+      }
     }
   }
   return chosen;
@@ -125,6 +134,9 @@ export interface RankOptions {
  * eligibility → score → repetition penalties → diversity → exploration → sequencing → diagnostics.
  * Pure and deterministic given (features, pool, config, seed).
  */
+/** Max scored candidates persisted per request (top by score) — bounded log volume; every selected item is always included. */
+export const CANDIDATE_LOG_LIMIT = 50;
+
 export function rankFeed(
   pool: Candidate[],
   f: LearnerFeatures,
@@ -133,16 +145,42 @@ export function rankFeed(
 ): FeedResult {
   const { eligible, excluded } = filterEligible(pool, f);
   const scored = eligible.map((c) => scoreCandidate(c, f, cfg, opts.now));
-  const batch = selectBatch(scored, cfg, mulberry32(opts.seed ?? 1));
+  const decisions = new Map<
+    ScoredCandidate,
+    { decision: 'exploit' | 'explore'; propensity: number }
+  >();
+  const seed = opts.seed ?? 1;
+  const batch = selectBatch(scored, cfg, mulberry32(seed), decisions);
   const sequenced = sequenceBatch(batch);
-  const items: RankedItem[] = sequenced.map((s, i) => ({
-    contentId: s.candidate.contentId,
-    position: i,
-    score: Math.round(s.score * 1000) / 1000,
-    isExploration: s.isExploration,
-    whyShown: whyShown(s),
-    sources: s.candidate.sources,
-  }));
+  const items: RankedItem[] = sequenced.map((s, i) => {
+    const d = decisions.get(s) ?? { decision: 'exploit' as const, propensity: 1 };
+    return {
+      contentId: s.candidate.contentId,
+      position: i,
+      score: Math.round(s.score * 1000) / 1000,
+      isExploration: s.isExploration,
+      whyShown: whyShown(s),
+      sources: s.candidate.sources,
+      decision: d.decision,
+      propensity: d.propensity,
+    };
+  });
+  const chosenIds = new Set(items.map((i) => i.contentId));
+  const ranked = [...scored].sort(
+    (a, b) => b.score - a.score || a.candidate.contentId.localeCompare(b.candidate.contentId),
+  );
+  const candidates: CandidateLog[] = ranked
+    .map((s, rank) => ({ s, rank }))
+    .filter(({ s, rank }) => rank < CANDIDATE_LOG_LIMIT || chosenIds.has(s.candidate.contentId))
+    .map(({ s, rank }) => ({
+      contentId: s.candidate.contentId,
+      rank,
+      score: Math.round(s.score * 1000) / 1000,
+      sources: s.candidate.sources,
+      isExploration: s.isExploration,
+      selected: chosenIds.has(s.candidate.contentId),
+      contributions: whyShown(s),
+    }));
   return {
     rankingVersion: cfg.version,
     items,
@@ -152,6 +190,14 @@ export function rankFeed(
       eligible: eligible.length,
       explorationCount: items.filter((i) => i.isExploration).length,
       examPressure: examPressure(f.examDate, opts.now),
+    },
+    candidates,
+    policy: {
+      selection: 'greedy_diverse+sampled_exploration',
+      explorationRatio: cfg.explorationRatio,
+      explorationSlots: Math.round(cfg.batchSize * cfg.explorationRatio),
+      batchSize: cfg.batchSize,
+      seed,
     },
   };
 }

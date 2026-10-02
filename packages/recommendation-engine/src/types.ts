@@ -119,6 +119,26 @@ export interface RankedItem {
   /** why_shown: signed contributions; stored in recommendation diagnostics */
   whyShown: Record<string, number>;
   sources: CandidateSource[];
+  /** How this slot was filled. `exploit` = greedy by score (deterministic given state); `explore` = sampled. */
+  decision: 'exploit' | 'explore';
+  /**
+   * Probability the logging policy chose THIS item for this slot, conditional on the state at that step
+   * (explore: 1/|sampling pool|; exploit: 1). Required input for off-policy evaluation / contextual bandits.
+   * Note: it ignores the diversity-constraint rejection step (documented in docs/RECOMMENDATION_ENGINE.md).
+   */
+  propensity: number;
+}
+
+/** One scored candidate as logged (top-N by score plus every selected item). */
+export interface CandidateLog {
+  contentId: string;
+  rank: number;
+  score: number;
+  sources: CandidateSource[];
+  isExploration: boolean;
+  selected: boolean;
+  /** signed feature contributions + penalties (the model's score components) */
+  contributions: Record<string, number>;
 }
 
 export interface FeedResult {
@@ -130,5 +150,15 @@ export interface FeedResult {
     eligible: number;
     explorationCount: number;
     examPressure: number;
+  };
+  /** Logged candidate set (bounded) with score components, for bandit / learned-ranking training. */
+  candidates: CandidateLog[];
+  /** Policy parameters that produced this batch. */
+  policy: {
+    selection: string;
+    explorationRatio: number;
+    explorationSlots: number;
+    batchSize: number;
+    seed: number;
   };
 }

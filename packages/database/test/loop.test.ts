@@ -311,3 +311,14 @@ describe('candidate sources', () => {
     expect((await sourcesFor(next.recommendationId)).get(target)).toContain('related');
   });
 });
+
+describe('feed request hardening', () => {
+  it('a non-numeric / negative / huge limit never yields an empty or unbounded feed', async () => {
+    for (const limit of [Number.NaN, -5, 0, 1e9, undefined]) {
+      const u = await createUser(db, `lim${String(limit)}@x.io`);
+      const feed = await getFeed(sql, { userId: u, limit: limit as number, now: T0, seed: 1 });
+      expect(feed.items.length).toBeGreaterThan(0);
+      expect(feed.items.length).toBeLessThanOrEqual(30);
+    }
+  });
+});

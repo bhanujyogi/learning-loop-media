@@ -30,7 +30,7 @@ New sources default to `needs_review`/`pending`. **Any change to license/terms/t
 
 `schema_valid, source_valid, license_valid, metadata_valid, answer_keys_valid, duplicate_check_passed, content_quality_check_passed`
 (`runGates`; results stored in `quality_gate_results`; `app.required_gates()` is parity-tested). Official content needs ≥1 concept, ≥1 exam, difficulty, learning objective, provenance; AI content needs model id + prompt version.
-Gate results are written by an independent validator with `pipeline.run`; authors cannot self-certify.
+Gate results are written by an independent validator with `pipeline.run`; authors cannot self-certify. **Gates are bound to the exact content (audit C2):** each result stores a database-computed `content_hash` (body, answer key, provenance + source licence snapshots, metadata, concept/exam links); `publish_content()` requires hash equality, so editing anything after validation makes publish fail until the validator re-checks. A checker may not be the version's author/uploader or an identity member who can author it.
 
 ## Dedup (`dedup.ts`)
 

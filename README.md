@@ -25,7 +25,7 @@ packages/
   ai/                     local-AI provider abstraction (no cloud runtime dependency)
   database/               server-side services (submitAnswer, getFeed, …), StorageProvider, DB test harness (PGlite)
 supabase/
-  migrations/  13 ordered SQL migrations (schema, RLS, guards)   seed/  dev seed   functions/  Edge Function wrappers
+  migrations/  16 ordered SQL migrations (schema, RLS, guards)   seed/  dev seed   functions/  Edge Function wrappers
 docs/           specifications and decisions
 ```
 

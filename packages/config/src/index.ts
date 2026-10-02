@@ -49,6 +49,67 @@ export const RANKING_V1: RankingConfig = {
 
 export const RANKING_CONFIGS: Record<string, RankingConfig> = { ranking_v1: RANKING_V1 };
 
+/** The JSON stored in `ranking_versions.algorithm` (everything except the version string). */
+export const rankingAlgorithmOf = (c: RankingConfig) => ({
+  weights: c.weights,
+  explorationRatio: c.explorationRatio,
+  repetition: c.repetition,
+  diversity: c.diversity,
+  batchSize: c.batchSize,
+});
+
+const WEIGHT_KEYS = Object.keys(RANKING_V1.weights).sort();
+const REPETITION_KEYS = Object.keys(RANKING_V1.repetition).sort();
+const DIVERSITY_KEYS = Object.keys(RANKING_V1.diversity).sort();
+const isObj = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+const sameKeys = (o: Record<string, unknown>, keys: string[]) =>
+  JSON.stringify(Object.keys(o).sort()) === JSON.stringify(keys);
+const numIn = (v: unknown, lo: number, hi: number): v is number =>
+  typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
+
+/**
+ * Validates a DB-stored ranking algorithm. The database row is AUTHORITATIVE (audit H9), so it is treated as external input:
+ * exact key sets, finite bounded numbers, weights summing to 1 (±0.001). Throws a descriptive Error on any violation —
+ * callers fall back to the built-in RANKING_V1 and must log/record that they did.
+ */
+export function parseRankingConfig(version: string, algorithm: unknown): RankingConfig {
+  const bad = (m: string): never => {
+    throw new Error(`invalid ranking config for ${version}: ${m}`);
+  };
+  if (!/^ranking_v\d+$/.test(version)) bad('version format');
+  if (!isObj(algorithm)) return bad('not an object');
+  const { weights, explorationRatio, repetition, diversity, batchSize } = algorithm;
+  if (!isObj(weights) || !sameKeys(weights, WEIGHT_KEYS)) return bad('weights keys');
+  if (!Object.values(weights).every((w) => numIn(w, 0, 1)))
+    return bad('weights must be numbers in [0,1]');
+  const sum = (Object.values(weights) as number[]).reduce((a, b) => a + b, 0);
+  if (Math.abs(sum - 1) > 0.001) bad(`weights sum to ${sum.toFixed(4)}, expected 1`);
+  if (!numIn(explorationRatio, 0, 0.5)) bad('explorationRatio must be in [0, 0.5]');
+  if (
+    !isObj(repetition) ||
+    !sameKeys(repetition, REPETITION_KEYS) ||
+    !Object.values(repetition).every((x) => numIn(x, 0, 1))
+  )
+    bad('repetition');
+  if (
+    !isObj(diversity) ||
+    !sameKeys(diversity, DIVERSITY_KEYS) ||
+    !Object.values(diversity).every((x) => numIn(x, 1, 50))
+  )
+    bad('diversity');
+  if (!Number.isInteger(batchSize) || !numIn(batchSize, 1, 50))
+    bad('batchSize must be an integer in [1, 50]');
+  return {
+    version,
+    weights: weights as unknown as RankingWeights,
+    explorationRatio: explorationRatio as number,
+    repetition: repetition as unknown as RankingConfig['repetition'],
+    diversity: diversity as unknown as RankingConfig['diversity'],
+    batchSize: batchSize as number,
+  };
+}
+
 export const getRankingConfig = (version: string): RankingConfig => {
   const c = RANKING_CONFIGS[version];
   if (!c) throw new Error(`Unknown ranking version: ${version}`);

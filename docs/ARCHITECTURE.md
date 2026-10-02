@@ -75,3 +75,7 @@ delayed recall weighs more, FSRS intervals grow, raw events cannot forge mastery
 ## What this deliberately is not
 
 No microservices, Kubernetes, search cluster, streaming platform or heavyweight ML — see DECISIONS.md and ROADMAP.md for the evolution path.
+
+## Update (audit remediation)
+
+Server code never runs as a superuser: `Sql` port → `asUser(userId)` → one transaction under `app_server`/`app_jobs` (RLS applies, no BYPASSRLS). Learner features are read-modify-write under a row lock (`FOR UPDATE`; `loadFeatures` refuses to run outside a transaction). Ranking configuration lives in the database (validated, immutable once active) with the code constant as fallback. Workspace packages use explicit `.ts` import specifiers so they resolve under Deno, Metro, Next and Vitest alike.

@@ -157,3 +157,34 @@ export function examPressure(examDate: number | null, now: number): number {
   if (days <= 180) return 0.15;
   return 0;
 }
+
+const top = (rec: Record<string, Affinity>, n = 5) =>
+  Object.fromEntries(
+    Object.entries(rec)
+      .sort((a, b) => b[1].n - a[1].n)
+      .slice(0, n)
+      .map(([k, a]) => [k, { score: Math.round(effective(a) * 1000) / 1000, n: a.n }]),
+  );
+
+/**
+ * Compact, bounded "feature vector" logged with every recommendation (docs/RECOMMENDATION_ENGINE.md): enough to reconstruct the
+ * learner state a ranking decision was made under, without copying the whole feature document (privacy + size).
+ */
+export function snapshotFeatures(f: LearnerFeatures, now: number) {
+  return {
+    features_version: FEATURES_VERSION,
+    ability: Math.round(f.ability * 1000) / 1000,
+    frustration: Math.round(f.frustration * 1000) / 1000,
+    session_fatigue: Math.round(f.sessionFatigue * 1000) / 1000,
+    exam_pressure: examPressure(f.examDate, now),
+    due_concepts: f.dueConceptIds.length,
+    weak_concepts: Object.keys(f.conceptNeed).length,
+    seen_count: f.seenContentIds.length,
+    followed_creators: f.followedCreatorIds.length,
+    subject: top(f.subject),
+    format: top(f.format),
+    hook: top(f.hook),
+    format_learning: top(f.formatLearning),
+    hook_learning: top(f.hookLearning),
+  };
+}

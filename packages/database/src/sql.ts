@@ -17,7 +17,11 @@ export interface Sql {
  */
 export async function asUser<R>(sql: Sql, userId: string, fn: (tx: Sql) => Promise<R>): Promise<R> {
   const run = async (tx: Sql) => {
-    await tx.query(`select set_config('request.jwt.claim.sub', $1, true)`, [userId]);
+    // both forms Supabase's auth.uid() understands (legacy claim.sub and the JSON claims object)
+    await tx.query(
+      `select set_config('request.jwt.claim.sub', $1, true), set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)`,
+      [userId],
+    );
     return fn(tx);
   };
   return sql.inTransaction ? run(sql) : sql.transaction(run);

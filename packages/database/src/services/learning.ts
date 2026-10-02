@@ -31,6 +31,8 @@ export interface SubmitAnswerInput {
   hintsUsed?: number;
   confidence?: number;
   idempotencyKey?: string;
+  /** The feed recommendation this answer came from (outcome attribution, audit H9). Ignored unless a UUID. */
+  recommendationId?: string;
   now?: number;
 }
 
@@ -77,6 +79,11 @@ interface QuestionRow {
  */
 export async function submitAnswer(db: Sql, input: SubmitAnswerInput): Promise<SubmitAnswerResult> {
   const now = input.now ?? Date.now();
+  const recId =
+    input.recommendationId &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.recommendationId)
+      ? input.recommendationId
+      : undefined;
   if (
     input.hintsUsed !== undefined &&
     (!Number.isInteger(input.hintsUsed) || input.hintsUsed < 0 || input.hintsUsed > 20)
@@ -412,6 +419,7 @@ export async function submitAnswer(db: Sql, input: SubmitAnswerInput): Promise<S
             response_ms: input.responseMs,
             hints_used: input.hintsUsed ?? 0,
             attempt_no: attemptNo,
+            recommendation_id: recId,
           },
         },
         now,
@@ -419,7 +427,12 @@ export async function submitAnswer(db: Sql, input: SubmitAnswerInput): Promise<S
       sanitizeEvent(
         {
           name: grade.correct ? 'answer_correct' : 'answer_incorrect',
-          payload: { question_id: q.id, concept_id: concepts[0], response_ms: input.responseMs },
+          payload: {
+            question_id: q.id,
+            concept_id: concepts[0],
+            response_ms: input.responseMs,
+            recommendation_id: recId,
+          },
         },
         now,
       ),

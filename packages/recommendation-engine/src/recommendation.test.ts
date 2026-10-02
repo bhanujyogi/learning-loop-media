@@ -15,6 +15,8 @@ import {
   thompsonPick,
   sampleBeta,
   targetDifficultyFor,
+  snapshotFeatures,
+  CANDIDATE_LOG_LIMIT,
   type Candidate,
   type LearnerFeatures,
 } from './index.ts';
@@ -244,5 +246,61 @@ describe('bandit helpers', () => {
       expect(x).toBeGreaterThan(0);
       expect(x).toBeLessThan(1);
     }
+  });
+});
+
+describe('H9 decision logging for bandits / off-policy evaluation', () => {
+  const pool = Array.from({ length: 80 }, (_, i) =>
+    cand(`q${i}`, {
+      creatorId: `cr${i % 9}`,
+      subjectId: ['math', 'geo', 'eng', 'sci'][i % 4]!,
+      format: (['video', 'map', 'question', 'note'] as const)[i % 4]!,
+      sources: i % 5 === 0 ? ['exploration'] : ['interest'],
+    }),
+  );
+  it('every item records a decision and a valid propensity; explore picks are sampled (p<1), exploit picks greedy (p=1)', () => {
+    const r = rankFeed(pool, learner(), RANKING_V1, { now: NOW, seed: 11 });
+    expect(r.items.every((i) => i.propensity > 0 && i.propensity <= 1)).toBe(true);
+    const explore = r.items.filter((i) => i.decision === 'explore');
+    expect(explore.length).toBeGreaterThanOrEqual(1);
+    expect(explore.every((i) => i.propensity < 1)).toBe(true);
+    expect(r.items.filter((i) => i.decision === 'exploit').every((i) => i.propensity === 1)).toBe(
+      true,
+    );
+  });
+  it('candidate log is bounded, ordered by rank, includes every selected item and its score components', () => {
+    const r = rankFeed(pool, learner(), RANKING_V1, { now: NOW, seed: 11 });
+    expect(r.candidates.length).toBeLessThanOrEqual(CANDIDATE_LOG_LIMIT + RANKING_V1.batchSize);
+    const selected = r.candidates
+      .filter((c) => c.selected)
+      .map((c) => c.contentId)
+      .sort();
+    expect(selected).toEqual(r.items.map((i) => i.contentId).sort());
+    const ranks = r.candidates.map((c) => c.rank);
+    expect([...ranks].sort((a, b) => a - b)).toEqual(ranks);
+    expect(Object.keys(r.candidates[0]!.contributions)).toEqual(
+      expect.arrayContaining(['learning_need', 'exploration']),
+    );
+  });
+  it('records the policy that produced the batch (reproducible with the seed)', () => {
+    const r = rankFeed(pool, learner(), RANKING_V1, { now: NOW, seed: 5 });
+    expect(r.policy).toMatchObject({
+      selection: 'greedy_diverse+sampled_exploration',
+      explorationRatio: 0.15,
+      batchSize: 10,
+      seed: 5,
+    });
+    expect(r.policy.explorationSlots).toBe(2);
+    expect(rankFeed(pool, learner(), RANKING_V1, { now: NOW, seed: 5 })).toEqual(r);
+  });
+  it('feature snapshot is compact and versioned', () => {
+    let f = learner({ ability: 0.61, conceptNeed: { a: 0.9, b: 0.4 }, dueConceptIds: ['a'] });
+    for (let i = 0; i < 30; i++)
+      f = applyFeedback(f, { type: 'engagement', name: 'save', format: `fmt${i}` });
+    const snap = snapshotFeatures(f, NOW);
+    expect(snap.features_version).toBe('features_v1');
+    expect(snap.ability).toBe(0.61);
+    expect(snap.weak_concepts).toBe(2);
+    expect(Object.keys(snap.format).length).toBeLessThanOrEqual(5);
   });
 });

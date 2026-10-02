@@ -90,6 +90,7 @@ export const api = {
     responseMs?: number;
     hintsUsed?: number;
     confidence?: number;
+    recommendationId?: string;
     idempotencyKey: string;
   }) => call<SubmitAnswerResponse>('submit-answer', { body: b }),
   events: (events: { name: string; payload?: Record<string, unknown>; at?: number }[]) =>

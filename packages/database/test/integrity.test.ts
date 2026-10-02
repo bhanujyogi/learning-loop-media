@@ -280,3 +280,33 @@ describe('H6 least-privilege service roles', () => {
     ).not.toBe(0.5);
   });
 });
+
+describe('H6 service role sees published material only', () => {
+  it('cannot read drafts, unpublished versions or their answer keys', async () => {
+    const author = await createUser(db, 'dr@x.io');
+    const q = (
+      await db.query<{ id: string }>(
+        `insert into content_items(type,title,ownership,owner_user_id) values ('question','Draft Q','user',$1) returning id`,
+        [author],
+      )
+    ).rows[0]!.id;
+    const v = (
+      await db.query<{ id: string }>(
+        `insert into content_versions(content_id, body) values ($1,'{"type":"single_choice","prompt":"p","options":[]}') returning id`,
+        [q],
+      )
+    ).rows[0]!.id;
+    await db.query(
+      `insert into content_answer_keys(content_version_id, answer, explanation) values ($1,'{"optionId":"a"}','secret explanation')`,
+      [v],
+    );
+    expect(await sql.query(`select id from content_items where id = $1`, [q])).toEqual([]);
+    expect(await sql.query(`select id from content_versions where id = $1`, [v])).toEqual([]);
+    expect(
+      await sql.query(`select * from content_answer_keys where content_version_id = $1`, [v]),
+    ).toEqual([]);
+    expect((await sql.query(`select id from content_items where id = $1`, [Q_UNIT])).length).toBe(
+      1,
+    ); // published seed content is readable
+  });
+});

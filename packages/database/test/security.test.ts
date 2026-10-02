@@ -264,8 +264,6 @@ describe('user content', () => {
     ).not.toBeNull();
   });
   it('upload rate limit applies', async () => {
-    const e = await Actor.prototype.fails.call(dave, `select 1`).catch(() => 'n/a');
-    void e;
     for (let i = 0; i < 20; i++) await note(dave, `n${i}`);
     expect(
       await dave.fails(
@@ -415,9 +413,13 @@ describe('moderation', () => {
     ]);
     await mod.q(`select apply_moderation_action('content', $1, 'remove', 'violates policy')`, [id]);
     expect((await bob.q(`select id from content_items where id = $1`, [id])).length).toBe(0);
-    await alice
-      .fails(`update content_items set publishing = 'draft' where id = $1 and false`, [id])
-      .catch(() => undefined);
+    // the owner of removed content cannot clear the removal themselves
+    expect(
+      await alice.denied(
+        `update content_items set moderation = 'cleared' where id = $1 returning id`,
+        [id],
+      ),
+    ).toBe(true);
     await alice.fails(`select publish_content($1)`, [id]);
     expect(
       (
@@ -610,9 +612,8 @@ describe('learning integrity & privacy', () => {
   it('learner profile: own data only; derived fields are server-managed', async () => {
     await alice.q(`insert into learner_profiles(user_id, interests) values (auth.uid(), '{math}')`);
     await alice.fails(`update learner_profiles set ability = 0.99 where user_id = auth.uid()`);
-    await alice
-      .fails(`insert into learner_profiles(user_id, ability) values (auth.uid(), 0.9)`)
-      .catch(() => undefined);
+    // a fresh learner cannot self-assign a derived ability at insert time either (RLS check ability = 0.5)
+    await bob.fails(`insert into learner_profiles(user_id, ability) values (auth.uid(), 0.9)`);
     expect((await bob.q(`select * from learner_profiles`)).length).toBe(0);
   });
   it('events: clients cannot insert at all (sanitised server path only); nobody reads others events', async () => {
@@ -642,9 +643,6 @@ describe('learning integrity & privacy', () => {
     await alice.fails(
       `insert into experiments(key, hypothesis, variants) values ('hack','x','[]')`,
     );
-    await alice
-      .fails(`update feature_flags set enabled = true where key = 'local_ai'`)
-      .catch(() => undefined);
     expect(
       (
         await alice.q(

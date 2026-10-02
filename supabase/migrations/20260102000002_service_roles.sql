@@ -49,6 +49,18 @@ begin
   end loop;
 end $$;
 
+-- Narrow the content policies further: the service role needs PUBLISHED material only (feed, grading) — never drafts,
+-- unpublished versions or their answer keys. 'superseded' stays readable so idempotent replays of old attempts still resolve.
+drop policy content_items_app_server on content_items;
+create policy content_items_app_server on content_items for select to app_server
+  using (publishing = 'published' and deleted_at is null);
+drop policy content_versions_app_server on content_versions;
+create policy content_versions_app_server on content_versions for select to app_server
+  using (state in ('published', 'superseded'));
+drop policy content_answer_keys_app_server on content_answer_keys;
+create policy content_answer_keys_app_server on content_answer_keys for select to app_server
+  using (exists (select 1 from content_versions v where v.id = content_version_id and v.state in ('published', 'superseded')));
+
 -- Derived learner fields are server-managed: allow the service role, still forbid every end-user session.
 create or replace function app.guard_learner_profile() returns trigger language plpgsql as $$
 begin

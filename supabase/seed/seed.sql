@@ -94,8 +94,7 @@ begin
   end loop;
 end $$;
 
-insert into ranking_versions(version, algorithm, status, activated_at, notes) values
-  ('ranking_v1', '{"source":"packages/config RANKING_V1"}', 'active', now(), 'Initial interpretable ranking; weights are configurable starting points, not proven optimal.');
+-- ranking_v1 is created by migration 20260102000003 (authoritative config); not seeded.
 
 insert into achievements(code, name, description, criteria) values
   ('first_correct', 'First correct answer', 'Answer your first question correctly', '{"correct_answers": 1}'),
