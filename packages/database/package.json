@@ -10,17 +10,19 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@learning-loop/shared": "workspace:*",
-    "@supabase/supabase-js": "^2.45.0",
+    "@learning-loop/analytics": "workspace:*",
     "@learning-loop/config": "workspace:*",
     "@learning-loop/content-engine": "workspace:*",
-    "@learning-loop/validation": "workspace:*",
     "@learning-loop/learning-engine": "workspace:*",
     "@learning-loop/recommendation-engine": "workspace:*",
-    "@learning-loop/analytics": "workspace:*"
+    "@learning-loop/shared": "workspace:*",
+    "@learning-loop/validation": "workspace:*",
+    "@supabase/supabase-js": "^2.45.0"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.8"
+    "@electric-sql/pglite": "^0.5.8",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1"
   },
   "exports": {
     ".": "./src/index.ts",
