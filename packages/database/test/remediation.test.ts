@@ -416,3 +416,23 @@ describe('medium hardening', () => {
     expect((await m.q(`select id from content_items where id=$1`, [pubd])).length).toBe(1);
   });
 });
+
+describe('client privilege hardening (found during hosted verification)', () => {
+  it('authenticated holds no TRUNCATE/REFERENCES/TRIGGER on public tables and no write privilege on server-written tables', async () => {
+    const db = await freshDb();
+    const trunc = await db.query<{ t: string }>(
+      `select c.relname t from pg_class c where c.relnamespace='public'::regnamespace and c.relkind='r'
+         and (has_table_privilege('authenticated', c.oid, 'TRUNCATE') or has_table_privilege('authenticated', c.oid, 'REFERENCES')
+              or has_table_privilege('authenticated', c.oid, 'TRIGGER'))`,
+    );
+    expect(trunc.rows).toEqual([]);
+    const writable = await db.query<{ t: string }>(
+      `select c.relname t from pg_class c where c.relnamespace='public'::regnamespace and c.relkind='r'
+         and c.relname in ('question_attempts','concept_mastery','xp_ledger','user_features','review_items','review_history',
+                           'user_progress','events','audit_log','content_quality_signals','recommendations','content_stats')
+         and (has_table_privilege('authenticated', c.oid, 'INSERT') or has_table_privilege('authenticated', c.oid, 'UPDATE')
+              or has_table_privilege('authenticated', c.oid, 'DELETE'))`,
+    );
+    expect(writable.rows).toEqual([]);
+  });
+});
