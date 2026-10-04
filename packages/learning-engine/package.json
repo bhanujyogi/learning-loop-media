@@ -1,0 +1,21 @@
+{
+  "name": "@learning-loop/learning-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@learning-loop/shared": "workspace:*",
+    "@learning-loop/config": "workspace:*",
+    "ts-fsrs": "^5.0.0"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./gamification": "./src/gamification.ts"
+  }
+}

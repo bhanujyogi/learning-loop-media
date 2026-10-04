@@ -141,3 +141,14 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Learning Loop
+.expo/
+.next/
+.env
+.env.*
+!.env.example
+supabase/.temp/
+supabase/.branches/
+next-env.d.ts
+*.tsbuildinfo

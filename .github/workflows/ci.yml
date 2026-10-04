@@ -1,0 +1,39 @@
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request:
+permissions: { contents: read }
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+        env:
+          REQUIRE_REAL_PG: '1' # concurrency tests must run on a real PostgreSQL server (preinstalled on ubuntu runners)
+      - uses: denoland/setup-deno@v2
+        with: { deno-version: v2.x }
+      - name: Edge Functions load and serve under real Deno (not the Supabase CLI)
+        run: REQUIRE_DENO=1 node scripts/check-edge-functions.mjs
+      # Real-Postgres migration + RLS + loop tests run inside `pnpm test` (packages/database, PGlite).
+      - name: Admin production build
+        run: pnpm --filter @learning-loop/admin build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+      - name: Mobile bundle (Metro)
+        run: pnpm --filter @learning-loop/mobile exec expo export --platform android --output-dir /tmp/export
+        env:
+          CI: '1'
+          EXPO_OFFLINE: '1'
+          EXPO_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+      - name: Dependency audit (high+)
+        run: pnpm audit --audit-level=high --prod
+        continue-on-error: true

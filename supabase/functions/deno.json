@@ -1,0 +1,15 @@
+{
+  "imports": {
+    "@learning-loop/shared": "../../packages/shared/src/index.ts",
+    "@learning-loop/config": "../../packages/config/src/index.ts",
+    "@learning-loop/validation": "../../packages/validation/src/index.ts",
+    "@learning-loop/learning-engine": "../../packages/learning-engine/src/index.ts",
+    "@learning-loop/recommendation-engine": "../../packages/recommendation-engine/src/index.ts",
+    "@learning-loop/analytics": "../../packages/analytics/src/index.ts",
+    "@learning-loop/database": "../../packages/database/src/index.ts",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
+    "ts-fsrs": "npm:ts-fsrs@5",
+    "zod": "npm:zod@4",
+    "postgres": "npm:postgres@3"
+  }
+}
