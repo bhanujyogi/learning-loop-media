@@ -66,15 +66,19 @@ export const kindOf = (type: string, format?: string | null): Kind =>
 
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
 export const radius = { sm: 8, md: 14, lg: 22, xl: 30, pill: 999 } as const;
+/**
+ * Line heights are >= 1.4x the font size on purpose: Devanagari (Hindi) has marks above and below the line and is visibly
+ * clipped on Android at the ~1.25x typical of Latin-only scales (guarded by tokens.test.ts).
+ */
 export const type = {
-  title: { fontSize: 28, fontWeight: '800' as const, lineHeight: 34 },
-  heading: { fontSize: 20, fontWeight: '700' as const, lineHeight: 26 },
-  body: { fontSize: 16, fontWeight: '400' as const, lineHeight: 23 },
-  label: { fontSize: 14, fontWeight: '600' as const, lineHeight: 18 },
-  caption: { fontSize: 12, fontWeight: '500' as const, lineHeight: 16 },
+  title: { fontSize: 28, fontWeight: '800' as const, lineHeight: 40 },
+  heading: { fontSize: 20, fontWeight: '700' as const, lineHeight: 29 },
+  body: { fontSize: 16, fontWeight: '400' as const, lineHeight: 24 },
+  label: { fontSize: 14, fontWeight: '600' as const, lineHeight: 20 },
+  caption: { fontSize: 12, fontWeight: '500' as const, lineHeight: 18 },
   /** Big on-card question/prompt text: readable at arm's length, one idea per screen. */
-  display: { fontSize: 26, fontWeight: '800' as const, lineHeight: 33 },
-  prompt: { fontSize: 21, fontWeight: '700' as const, lineHeight: 29 },
+  display: { fontSize: 26, fontWeight: '800' as const, lineHeight: 38 },
+  prompt: { fontSize: 21, fontWeight: '700' as const, lineHeight: 31 },
 } as const;
 /** Minimum touch target (accessibility). */
 export const HIT = 48;

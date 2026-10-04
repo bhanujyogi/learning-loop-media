@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { kindOf, kindPalette, palette } from './tokens';
+import { HIT, kindOf, kindPalette, palette, type } from './tokens';
 
 const lum = (hex: string) => {
   const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
@@ -35,5 +35,15 @@ describe('kindOf', () => {
     expect(kindOf('note', 'challenge')).toBe('question');
     expect(kindOf('video')).toBe('video');
     expect(kindOf('lesson')).toBe('other');
+  });
+});
+
+describe('typography and touch targets', () => {
+  it('every text style has Devanagari-safe line height (>= 1.4x) so Hindi is not clipped', () => {
+    for (const [name, v] of Object.entries(type))
+      expect(v.lineHeight / v.fontSize, name).toBeGreaterThanOrEqual(1.4);
+  });
+  it('the minimum touch target is at least 48dp', () => {
+    expect(HIT).toBeGreaterThanOrEqual(48);
   });
 });

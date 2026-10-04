@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { answerCache } from '../../lib/answer-cache';
 import { prependBatch } from '../../lib/feed-window';
+import { mergeFetched, settleWrite } from '../../lib/reactions';
 import { EMPTY_STATS, MAX_DOTS, recordResult } from '../../lib/session-stats';
 import {
   buildResponse,
@@ -124,5 +125,25 @@ describe('answer cache', () => {
       answerCache.set(`q${i}`, { selected: ['a'], text: '', result: r });
     expect(answerCache.get('q0')).toBeUndefined();
     expect(answerCache.get('q104')?.selected).toEqual(['a']);
+  });
+});
+
+describe('like / save / follow write handling', () => {
+  it('a duplicate insert (unique violation) means "already on": kept on, no error, no second event', () => {
+    expect(settleWrite('add', { code: '23505' })).toBe('already');
+    expect(settleWrite('add', null)).toBe('ok');
+    expect(settleWrite('remove', null)).toBe('ok');
+  });
+  it('any other failure is a real failure that must roll back (RLS denial, network, server error)', () => {
+    expect(settleWrite('add', { code: '42501' })).toBe('failed');
+    expect(settleWrite('add', {})).toBe('failed');
+    expect(settleWrite('remove', { code: '23505' })).toBe('failed'); // a unique violation on delete is not "fine"
+    expect(settleWrite('remove', { code: 'PGRST301' })).toBe('failed');
+  });
+  it('a server lookup sets state for what it was asked about but never clobbers a row being toggled right now', () => {
+    const cur = new Set(['a', 'b', 'c']);
+    // asked about a,b,d; server says only d is on; the learner is mid-toggle on b
+    const next = mergeFetched(cur, ['d'], new Set(['b']), ['a', 'b', 'd']);
+    expect([...next].sort()).toEqual(['b', 'c', 'd']); // a cleared by the server, b protected, c untouched (not asked), d added
   });
 });

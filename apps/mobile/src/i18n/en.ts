@@ -138,6 +138,7 @@ export const en = {
   'q.err.generic': 'Could not check your answer. Please try again.',
   'q.repeat':
     'You answered this recently, so repeats count less toward your progress and earn no extra XP.',
+  'q.replayed': 'Your answer was already recorded, so nothing is counted twice.',
   'q.swipeNext': 'Swipe up for the next one',
   'q.next': 'Next',
 
@@ -220,6 +221,7 @@ export const en = {
   'int.diagram': 'Diagram hotspots need the media pipeline (not configured in this build).',
 
   'feed.upToDate': "You're up to date — nothing newer yet.",
+  'feed.refreshError': 'Couldn’t refresh. Pull down to try again.',
   'feed.moreError': 'Couldn’t load more.',
   'feed.byOfficial': 'Learning Loop',
 } as const;

@@ -19,7 +19,7 @@ const VIEWABILITY = { itemVisiblePercentThreshold: 80 } as const;
 
 /** Vertical, paged, virtualised learning feed backed by the server's ranking pipeline. */
 export function FeedScreen() {
-  const { t } = useI18n();
+  const { t, prefsVersion } = useI18n();
   const { colors } = useTheme();
   const feed = useFeed();
   const { notice, show } = useNotice();
@@ -82,6 +82,20 @@ export function FeedScreen() {
     if (next < feed.items.length) list.current?.scrollToIndex({ index: next, animated: true });
     else if (!feed.exhausted) void feed.loadMore();
   }, [active, feed]);
+
+  // A saved language change must change the CONTENT too (the feed serves the learner's language + English), not just the UI.
+  const lastPrefs = useRef(prefsVersion);
+  useEffect(() => {
+    if (lastPrefs.current === prefsVersion) return;
+    lastPrefs.current = prefsVersion;
+    setActive(0);
+    feed.reset();
+  }, [prefsVersion]);
+
+  // A failed pull-to-refresh while items are on screen must not be silent.
+  useEffect(() => {
+    if (feed.error && feed.items.length) show(t('feed.refreshError'));
+  }, [feed.error, feed.items.length, show, t]);
 
   // Pull-to-refresh with nothing newer: say so instead of silently doing nothing.
   useEffect(() => {

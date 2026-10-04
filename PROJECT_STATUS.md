@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-_Last updated: 2026-10-04 (consumer mobile MVP milestone, on top of the hosted privilege-hardening milestone). Read this first; then `CLAUDE.md`; then `docs/ROADMAP.md`._
+_Last updated: 2026-10-04 (core learning loop + social basics milestone, on top of the consumer MVP and hosted-integration milestones). Read this first; then `CLAUDE.md`; then `docs/ROADMAP.md`._
 
 ## Summary
 
@@ -13,7 +13,7 @@ It is a foundation for a product, **not a finished product**: see "Not verified"
 | Check                                               | Result                                                                                                                                                                                                                                                                 |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm typecheck` / `pnpm lint` / `prettier --check` | clean                                                                                                                                                                                                                                                                  |
-| `pnpm test`                                         | **291 tests pass** across 10 workspaces (143 database, 48 mobile logic)                                                                                                                                                                                                |
+| `pnpm test`                                         | **319 tests pass** across 10 workspaces (149 database, 70 mobile logic)                                                                                                                                                                                                |
 | Migrations                                          | all 16 apply on PGlite **and on a real PostgreSQL 16 cluster** (concurrency suite); RLS enabled on every public table; `anon` has no privileges                                                                                                                        |
 | Security / regression suites                        | 41 original security tests + `remediation` (C1, C2, H1, H2, H3, medium) + `integrity` (H4, H5, H6) + `recommendation-logging` (H9). Each audit attack has a regression test; those that exercise changed code were run against the old implementation and failed there |
 | **Concurrency (H8)**                                | real multi-connection PostgreSQL 16: 12 concurrent event batches and feed/answer/event races lose no updates; **fails 3/3 without `FOR UPDATE`**; stable over 5 consecutive runs with it                                                                               |
@@ -95,12 +95,60 @@ Layout on small/large phones and notches, nested scrolling inside the paged feed
 - Batch ranking marks a whole batch as seen when it is fetched (pre-existing); learning-state changes therefore reach the _next_ batch (~3 cards later), not the already-fetched ones.
 - Email-confirmation projects show a "check your email" state; with `site_url=localhost` that link will not work from a phone.
 
+## Core learning loop + social basics — 2026-10-04
+
+Scope: feed → open item → answer → result + explanation → secure learner-state update → recommendation outcome → next personalised item, plus like/save/follow/Saved/public profile, in English and Hindi. Auth and onboarding were not touched. **Not production-ready.**
+
+### What was already present (not rebuilt)
+
+Server-graded `submit-answer` (attempt → mastery → ability → FSRS → XP → features → server-written `question_answered`/`answer_*` events carrying the recommendation id), the ranked `feed` with H9 logging and `recommendation_outcomes`, engagement-only `events`, the question card, feed screen, reactions, Saved, public profile and i18n from the previous milestone.
+
+### Changed in this milestone (each with a regression test)
+
+| Fix                                                                                                                                                                                                                                                                     | Why it mattered                                                                                                                                                                | Test                                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `recordEvents`: a client `feed_impression` for an item the feed already served no longer records it a second time (first sightings, e.g. opened from Saved, still are)                                                                                                  | The feed already records every served item; the client event doubled each item in the recency windows that drive repetition/diversity controls (reproduced: 4 → 8 entries)     | `learning-loop.test.ts` — **failed before, passes after**                           |
+| Question flow extracted to a pure state machine (`question-flow.ts`): double-tap-proof submit, retry re-sends the same idempotency key, **a changed answer gets a new key**, response time measured from when the card became **visible** (not mounted for preload)     | A changed answer after a lost response would have replayed the _first_ answer's grade under a mismatching UI; preloaded cards inflated `responseMs` (an input to FSRS grading) | `question-flow.test.ts` (12) + server contract test for same-key replay             |
+| Replayed answers show "already recorded"; repeat attempts explain "no extra XP"                                                                                                                                                                                         | Learners saw a missing XP/mastery bar with no explanation                                                                                                                      | i18n parity tests                                                                   |
+| Likes/saves/follows: a duplicate-row insert (initial lookup failed) is treated as "already on", lookups retry instead of sticking on a wrong "off", lookups never overwrite an in-flight toggle, saves refresh the Saved list and profile count (wrong query key fixed) | Wrong state + false error toasts; stale Saved/profile counts                                                                                                                   | `feed-model.test.ts` (`settleWrite`, `mergeFetched`)                                |
+| Feed state as a pure reducer (`feed-state.ts`); **changing language reloads the feed** after the account write, and responses requested before the change are dropped; failed refresh is announced                                                                      | The feed kept showing the old language until a manual refresh                                                                                                                  | `feed-state.test.ts` (5)                                                            |
+| Devanagari-safe line heights (≥1.4×), consistent `ScreenHeader` with a back that falls back to Home, iOS keyboard insets for the answer field                                                                                                                           | Hindi marks clip at ~1.25× line height on Android; deep-linked screens dead-ended                                                                                              | `tokens.test.ts`                                                                    |
+| Mobile↔server drift guards (from the previous milestone) still pass; one end-to-end server test mirrors the whole journey                                                                                                                                               | —                                                                                                                                                                              | `learning-loop.test.ts` (6 tests: loop, outcomes, forged rec id, signal separation) |
+
+### REAL-DEVICE VERIFIED
+
+Only what the owner reported from a real Android phone: **sign-up/sign-in and onboarding.** The hosted database agrees (1 user, onboarding completed, `preparation_level='beginner'` stored, `user_features` row created under the least-privileged role), which also shows the redeployed `onboarding` function and the new column work live.
+
+### VERIFIED (run here, 2026-10-04)
+
+`pnpm check` (typecheck + lint + **319 tests**), `prettier --check`, `expo export --platform android` (Hermes 5.6 MB), 12/12 Deno checks. Hosted via Management API (reads only, plus one function deploy): Edge Function **`events` redeployed (v2)** with the fix (bundle contains it); `feed` v2, `onboarding` v2, `submit-answer` v1, `jobs` v1 unchanged; hosted DB still has the 9 seed items (6 en / 3 hi) and 4 exams / 4 subjects.
+
+### TEST-VERIFIED ONLY (PGlite / Vitest — never on the real project or a device)
+
+The entire feed → answer → outcome → next-batch loop and its security properties (server-only grading, no forged learning events, forged recommendation ids ignored, same-user outcome attribution); language eligibility in the feed; follows reaching the ranker; every pure rule above (question flow, feed state, reactions, i18n, validation, contrast, line height). **JSX is compiled and bundled, never rendered** (no component tests exist).
+
+### NOT VERIFIED
+
+- **Live feed:** the hosted DB has **0 recommendations and 0 events**, so `feed`, `submit-answer`, `events` and the like/save/follow writes have **never executed on the real project** (platform logs are not queryable with this credential; the sandbox cannot reach `*.supabase.co`). First live run is the owner's next phone test. Specific unknowns: `getFeed` under `SET LOCAL ROLE app_server` on the Edge runtime, PostgREST behaviour of the Saved embed (`saves → content_items`) and of client reads of `content_versions`, Edge Function cold-start/latency.
+- **Follow has no real entry point yet:** the seed is all official content (not followable) and creator upload is not built, so follow/public-profile are reachable only for a user who owns published content. Tested at the database and logic level only.
+- Layout, gestures (nested scroll in the paged feed, pull-to-refresh), animations, haptics, TalkBack, Hindi rendering — all still need the phone. The Devanagari line-height change is based on known Android behaviour, not observed.
+- Hindi UI text is **unreviewed** by a native editor; Hindi _content_ is 3 synthetic dev items.
+
+### MOCKED / SYNTHETIC
+
+Nothing is mocked at runtime. All content is the synthetic dev seed (6 English + 3 Hindi items, labelled "Synthetic dev content"); no real official content exists. With 6 English items an English learner reaches "all caught up" after one batch by design (served items are not repeated; wrong answers return later through spaced-repetition due dates).
+
+### Known limits
+
+- Adaptation latency is about three cards: a batch is ranked when fetched, so an answer changes the _next_ batch, not the rest of the current one (served items are already marked seen).
+- No quiz UI/contract (unchanged); no "why was this shown" explanation in the UI.
+
 ### Hosted integration — 2026-10-04 (project `qwgsabpiqexfhndojckv`, ap-northeast-2, ACTIVE_HEALTHY)
 
 **Verified on the hosted project (Management API; read-only catalog queries):**
 
 - Migration `20260102000005_mvp_language_and_level` **applied** (history now 18 rows, last `mvp_language_and_level`). Present: `learner_profiles.preparation_level` + its check, `profiles_locale_format` check, policies `profiles_app_server_select/update`, `follows_app_server_select`. Privilege check with `has_*_privilege`: `app_server` can select/update only `profiles.locale` (not `username`/`display_name`), can only _select_ `follows`; `anon` has nothing on `profiles`/`follows`; `authenticated` has no `TRUNCATE`. RLS still on for all 78 public tables.
-- Edge Functions **`feed` and `onboarding` redeployed (v2, ACTIVE, `verify_jwt` kept true)** from commit `d7dd9b3`'s tree; the downloaded bundles contain the new code (`preparationLevel`, `isSupportedLocale`, `follows`, `p.locale`, ability prior). `events`, `submit-answer`, `jobs` untouched (v1, hashes unchanged).
+- Edge Functions **`feed` and `onboarding` redeployed (v2, ACTIVE, `verify_jwt` kept true)** from commit `d7dd9b3`'s tree; the downloaded bundles contain the new code (`preparationLevel`, `isSupportedLocale`, `follows`, `p.locale`, ability prior). `events` was later redeployed (v2) for the impression fix; `submit-answer`, `jobs` untouched (v1).
 - Public client config: URL + the project's **publishable** key (`sb_publishable_…`) in the git-ignored `apps/mobile/.env`. A plain-JS export shows the inlined config object holds exactly that URL and key; no secret-shaped string, no service-role JWT; `public-config.test.ts` now guards it (only the two `EXPO_PUBLIC_*` vars are read; no privileged names in app source; factory refuses secret keys).
 
 **Still NOT verified on hosted:** any live request (blocked from the sandbox), real GoTrue sign-up/sign-in, the deployed functions executing against the database, PostgREST embeds (`saves → content_items`). `site_url` (localhost) and email-confirmation settings were **not** changed.

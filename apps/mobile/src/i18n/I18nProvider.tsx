@@ -41,12 +41,15 @@ const deviceLocale = (): string | null => {
 type T = (key: MessageKey | PluralKey, params?: Params & { count?: number }) => string;
 interface I18n {
   locale: Locale;
+  /** Bumps after a language change has been SAVED (account written), so data that depends on it (the feed) can reload safely. */
+  prefsVersion: number;
   t: T;
   /** Saves the preference locally and (when signed in) to profiles.locale. Resolves false if the account write failed. */
   setLocale: (l: Locale) => Promise<boolean>;
 }
 const Ctx = createContext<I18n>({
   locale: DEFAULT_LOCALE,
+  prefsVersion: 0,
   t: (k, p) => translate(DEFAULT_LOCALE, k, p),
   setLocale: async () => true,
 });
@@ -56,6 +59,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const account = useAccount();
   const [stored, setStored] = useState<string | null>(readStored);
+  const [prefsVersion, setPrefsVersion] = useState(0);
   const locale = resolveLocale({
     onboarded: account.data?.onboarded ?? false,
     profileLocale: account.data?.locale,
@@ -72,7 +76,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     async (l: Locale) => {
       writeStored(l);
       setStored(l);
-      if (!uid) return true;
+      if (!uid) {
+        setPrefsVersion((v) => v + 1);
+        return true;
+      }
       // Optimistic cache update so the UI switches immediately; roll back if the account write fails.
       const prev = qc.getQueryData<Account>(accountKey(uid));
       if (prev) qc.setQueryData<Account>(accountKey(uid), { ...prev, locale: l });
@@ -81,13 +88,14 @@ export function I18nProvider({ children }: { children: ReactNode }) {
         if (prev) qc.setQueryData<Account>(accountKey(uid), prev);
         return false;
       }
+      setPrefsVersion((v) => v + 1); // the server now has the new language: dependent data may reload
       return true;
     },
     [uid, qc],
   );
   const value = useMemo<I18n>(
-    () => ({ locale, t: (k, p) => translate(locale, k, p), setLocale }),
-    [locale, setLocale],
+    () => ({ locale, prefsVersion, t: (k, p) => translate(locale, k, p), setLocale }),
+    [locale, prefsVersion, setLocale],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

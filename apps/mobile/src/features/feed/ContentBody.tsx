@@ -43,6 +43,7 @@ export function ContentBody({
           contentId={item.contentId}
           recommendationId={recommendationId}
           body={body as unknown as PublicQuestion}
+          active={active}
           onNext={onNext}
         />
       );

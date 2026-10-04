@@ -1,6 +1,6 @@
 import { levelFromXp } from '@learning-loop/learning-engine/gamification';
 import { useQuery } from '@tanstack/react-query';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,7 +12,6 @@ import { useReactions } from '../../lib/use-reactions';
 import { radius, space } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import {
-  Button,
   Card,
   EmptyState,
   ErrorState,
@@ -20,6 +19,7 @@ import {
   Text,
   ToggleButton,
 } from '../../ui/primitives';
+import { ScreenHeader } from '../../ui/ScreenHeader';
 import { Toast } from '../../ui/Toast';
 
 /** Another learner's/creator's public profile: handle, bio, level, and a follow toggle (RLS decides what is visible). */
@@ -27,7 +27,6 @@ export default function UserProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useI18n();
   const { colors } = useTheme();
-  const router = useRouter();
   const { notice, show } = useNotice();
   const reactions = useReactions([], id ? [id] : [], () => show(t('social.actionError')));
   const q = useQuery({
@@ -102,9 +101,7 @@ export default function UserProfile() {
   }
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <View style={{ paddingHorizontal: space.sm, alignSelf: 'flex-start' }}>
-        <Button variant="ghost" label={`‹ ${t('common.back')}`} onPress={() => router.back()} />
-      </View>
+      <ScreenHeader />
       <View style={{ flex: 1 }}>
         {body}
         <Toast message={notice} />

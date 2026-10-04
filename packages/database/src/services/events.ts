@@ -83,6 +83,10 @@ export async function recordEvents(
       const cid = (e.payload.content_id ?? e.payload.question_id) as string | undefined;
       const m = cid ? meta.get(cid) : undefined;
       if (e.name === 'feed_impression' && m) {
+        // The feed already recorded every item it SERVED (seen set + recency windows). Recording the client's impression for the
+        // same item again would double-count it in the repetition/diversity windows, so only first sightings are recorded here
+        // (e.g. content opened from Saved). The event row itself is still stored above for outcome attribution.
+        if (f.seenContentIds.includes(m.id)) continue;
         f = recordImpression(f, {
           contentId: m.id,
           conceptIds: m.concepts,

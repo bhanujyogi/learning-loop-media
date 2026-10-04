@@ -48,3 +48,16 @@ sign up / sign in → onboarding → personalised feed → open content → answ
    The app refuses a service-role key by design.
 3. `pnpm install`, then `pnpm --filter @learning-loop/mobile start`, and open it on a phone/emulator. Whether the current store build of Expo Go supports SDK 57 is **unverified**; if it doesn't, make a development build with EAS.
 4. For development data only, apply `supabase/seed/seed.sql` (synthetic, English + 3 Hindi items). **Never seed production.**
+
+## Core learning loop (second milestone)
+
+```
+feed (ranked batch, recommendation id) → card visible (timer starts) → answer → submit-answer (idempotent, server-graded)
+   → result + explanation + XP + mastery estimate → recommendation outcome (server-written learning events)
+   → engagement events (impression/like/save/open, client → events) → next batch ranked from the updated learner model
+```
+
+- **Learning vs engagement stay separate.** Only `submit-answer` can change mastery/XP/ability/FSRS; `events` accepts engagement signals and ignores learning-type events for learning state. Both carry the `recommendation_id`, so `recommendation_outcomes` joins them per (user, recommendation, item).
+- **Question rules** (`features/feed/question-flow.ts`, pure + tested): double-tap safe; retry keeps the idempotency key unless the answer changed; response time measured from visibility; results survive scrolling away (`answer-cache`).
+- **Feed rules** (`lib/feed-state.ts`): append on scroll, prepend on refresh, never re-sort; reset on language change; stale responses dropped.
+- **Social** (`lib/use-reactions.ts`): initial state from the database; optimistic toggles roll back on real failures; duplicate-row = already on; saves refresh Saved + profile count.

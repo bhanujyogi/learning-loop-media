@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { TextInput, View } from 'react-native';
 import { useI18n } from '../../i18n/I18nProvider';
 import { answerCache } from '../../lib/answer-cache';
@@ -13,7 +13,19 @@ import { useTheme } from '../../theme/useTheme';
 import { Animated, enter, usePop } from '../../ui/motion';
 import { Button, ChoiceCard, Pill, ProgressBar, Text } from '../../ui/primitives';
 import {
-  buildResponse,
+  activate,
+  beginSubmit,
+  failed,
+  initFlow,
+  place,
+  resetOrder,
+  select,
+  setText as setFlowText,
+  succeeded,
+  takeHint,
+  type Flow,
+} from './question-flow';
+import {
   describeCorrectAnswer,
   isReady,
   isSupportedQuestion,
@@ -33,11 +45,14 @@ export function QuestionCard({
   contentId,
   recommendationId,
   body,
+  active = true,
   onNext,
 }: {
   contentId: string;
   recommendationId?: string;
   body: PublicQuestion;
+  /** True while this is the card the learner is looking at (response time starts then, not when the card mounts to preload). */
+  active?: boolean;
   /** Scrolls the feed to the next card (shown after the answer, so the loop continues without hunting for a gesture). */
   onNext?: () => void;
 }) {
@@ -45,22 +60,31 @@ export function QuestionCard({
   const { t } = useI18n();
   const reduceMotion = useReduceMotion();
   const cached = answerCache.get(contentId);
-  const started = useRef(Date.now());
-  const key = useRef(uuid());
-  const submitting = useRef(false);
-  const [selected, setSelected] = useState<string[]>(cached?.selected ?? []);
-  const [text, setText] = useState(cached?.text ?? '');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  // All rules live in question-flow.ts (pure + unit-tested). The ref mirrors the state so a second tap in the same tick sees it.
+  const flowRef = useRef<Flow>(
+    initFlow(uuid(), cached ? { selected: cached.selected, text: cached.text } : undefined),
+  );
+  const [flow, setFlowState] = useState<Flow>(flowRef.current);
+  const update = (f: Flow) => {
+    flowRef.current = f;
+    setFlowState(f);
+  };
   const [res, setRes] = useState<SubmitAnswerResponse | null>(cached?.result ?? null);
-  const [hints, setHints] = useState(0);
   const pop = usePop(res?.attemptId);
+  useEffect(() => {
+    if (active) update(activate(flowRef.current, Date.now()));
+  }, [active]);
+  const { selected, text, hints } = flow;
+  const busy = flow.phase === 'submitting';
+  const err =
+    flow.error === 'offline' ? t('q.err.offline') : flow.error ? t('q.err.generic') : null;
 
   if (!isSupportedQuestion(body.type)) return <Text muted>{t('feed.unsupportedQuestion')}</Text>;
 
   const multi = body.type === 'multi_choice';
   const isText = body.type === 'fill_blank' || body.type === 'numerical';
   const isOrdering = body.type === 'ordering';
+  const toggle = (id: string) => update(select(flowRef.current, id, multi));
   const options =
     body.type === 'true_false'
       ? [
@@ -74,21 +98,27 @@ export function QuestionCard({
   const rightText = res ? describeCorrectAnswer(body, res.correctAnswer) : null;
 
   const submit = async () => {
-    if (submitting.current || res) return; // never submit twice (rapid taps / re-render races)
-    submitting.current = true;
-    setBusy(true);
-    setErr(null);
+    const begun = beginSubmit(flowRef.current, {
+      type: body.type,
+      ready: isReady(body, flowRef.current.selected, flowRef.current.text),
+      now: Date.now(),
+      newKey: uuid,
+    });
+    if (!begun) return; // already submitting / already graded / not ready: double taps are harmless
+    update(begun.state);
     try {
       const r = await api.submitAnswer({
         questionId: contentId,
-        response: buildResponse(body.type, selected, text),
-        responseMs: Date.now() - started.current,
-        hintsUsed: hints,
+        ...begun.request,
         recommendationId,
-        idempotencyKey: key.current, // a retry after a lost response replays the same attempt, never a second one
       });
+      update(succeeded(flowRef.current));
       setRes(r);
-      answerCache.set(contentId, { selected, text, result: r });
+      answerCache.set(contentId, {
+        selected: flowRef.current.selected,
+        text: flowRef.current.text,
+        result: r,
+      });
       if (!r.replayed) sessionStats.record({ correct: r.correct, xpAwarded: r.xp.awarded });
       if (!reduceMotion)
         void Haptics.notificationAsync(
@@ -97,15 +127,9 @@ export function QuestionCard({
             : Haptics.NotificationFeedbackType.Warning,
         );
     } catch (e) {
-      setErr(e instanceof ApiError && e.isOffline ? t('q.err.offline') : t('q.err.generic'));
-    } finally {
-      submitting.current = false;
-      setBusy(false);
+      update(failed(flowRef.current, e instanceof ApiError && e.isOffline));
     }
   };
-
-  const toggle = (id: string) =>
-    setSelected((s) => (multi ? (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]) : [id]));
 
   const tone =
     verdict === 'correct'
@@ -165,7 +189,7 @@ export function QuestionCard({
       {isText ? (
         <TextInput
           value={text}
-          onChangeText={setText}
+          onChangeText={(v) => update(setFlowText(flowRef.current, v))}
           editable={!res && !busy}
           keyboardType={body.type === 'numerical' ? 'numeric' : 'default'}
           autoCapitalize="none"
@@ -200,7 +224,7 @@ export function QuestionCard({
                 label={o.text}
                 state={pos >= 0 ? 'selected' : 'idle'}
                 disabled={!!res || busy || pos >= 0}
-                onPress={() => setSelected([...selected, o.id])}
+                onPress={() => update(place(flowRef.current, o.id))}
               />
             );
           })}
@@ -208,7 +232,7 @@ export function QuestionCard({
             <Button
               variant="ghost"
               label={t('q.orderReset')}
-              onPress={() => setSelected([])}
+              onPress={() => update(resetOrder(flowRef.current))}
               disabled={busy}
             />
           ) : null}
@@ -225,7 +249,7 @@ export function QuestionCard({
               hint_no: hints + 1,
               recommendation_id: recommendationId,
             });
-            setHints(hints + 1);
+            update(takeHint(flowRef.current));
           }}
         />
       ) : null}
@@ -304,6 +328,11 @@ export function QuestionCard({
               <Pill label={t('q.levelUp')} fg={colors.onPrimary} bg={colors.success} />
             ) : null}
           </View>
+          {res.replayed ? (
+            <Text variant="caption" muted>
+              {t('q.replayed')}
+            </Text>
+          ) : null}
           {res.repeatAttempt ? (
             <Text variant="caption" muted>
               {t('q.repeat')}

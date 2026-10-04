@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,7 +13,6 @@ import { supabase } from '../../lib/supabase';
 import { kindOf, space } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import {
-  Button,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -21,12 +20,13 @@ import {
   Text,
   ToggleButton,
 } from '../../ui/primitives';
+import { ScreenHeader, useGoBack } from '../../ui/ScreenHeader';
 import { Toast } from '../../ui/Toast';
 
 /** Opens one published item full-screen (from a feed card or the Saved list). The body is read through RLS like any client read. */
 export default function ContentScreen() {
   const { id, rec } = useLocalSearchParams<{ id: string; rec?: string }>();
-  const router = useRouter();
+  const goBack = useGoBack();
   const { t } = useI18n();
   const { colors, kind: kindColors } = useTheme();
   const { notice, show } = useNotice();
@@ -59,9 +59,6 @@ export default function ContentScreen() {
       track('note_open', { content_id: data.id, recommendation_id: recommendationId });
   }, [data?.id, data?.type, recommendationId]);
 
-  const back = (
-    <Button variant="ghost" label={`‹ ${t('common.back')}`} onPress={() => router.back()} />
-  );
   let body: React.ReactNode;
   if (q.isLoading) body = <LoadingState />;
   else if (q.isError) body = <ErrorState onRetry={() => void q.refetch()} />;
@@ -79,7 +76,7 @@ export default function ContentScreen() {
           item={{ contentId: data.id, type: data.type, body: data.body }}
           recommendationId={recommendationId}
           mode="full"
-          onNext={() => router.back()}
+          onNext={goBack}
         />
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
           <ToggleButton
@@ -104,9 +101,7 @@ export default function ContentScreen() {
   }
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <View style={{ paddingHorizontal: space.sm }}>
-        <View style={{ alignSelf: 'flex-start' }}>{back}</View>
-      </View>
+      <ScreenHeader />
       <View style={{ flex: 1 }}>
         {body}
         <Toast message={notice} />

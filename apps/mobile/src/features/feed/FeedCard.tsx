@@ -112,6 +112,7 @@ export function FeedCard({
           bounces={false}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
           contentContainerStyle={{ padding: space.xl, gap: space.lg }}
         >
           <Text variant="display" accessibilityRole="header">

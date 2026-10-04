@@ -11,6 +11,7 @@ import { useNotice } from '../lib/use-notice';
 import { kindOf, space } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { Button, Card, EmptyState, ErrorState, LoadingState, Pill, Text } from '../ui/primitives';
+import { ScreenHeader } from '../ui/ScreenHeader';
 import { Toast } from '../ui/Toast';
 
 interface SavedRow {
@@ -50,7 +51,7 @@ export default function Saved() {
     qc.setQueryData<SavedRow[]>(['saved', uid], (cur) =>
       (cur ?? []).filter((x) => x.content_id !== id),
     );
-    void qc.invalidateQueries({ queryKey: ['saved-count', uid] });
+    void qc.invalidateQueries({ queryKey: ['profile-stats', uid] });
   };
   let body: React.ReactNode;
   if (q.isLoading) body = <LoadingState />;
@@ -89,12 +90,7 @@ export default function Saved() {
     );
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.sm }}>
-        <Button variant="ghost" label={`‹ ${t('common.back')}`} onPress={() => router.back()} />
-        <Text variant="heading" accessibilityRole="header">
-          {t('saved.title')}
-        </Text>
-      </View>
+      <ScreenHeader title={t('saved.title')} />
       <View style={{ flex: 1 }}>
         {body}
         <Toast message={notice} />
