@@ -153,3 +153,25 @@ export type Role = (typeof ROLES)[number];
 export type Unit = number;
 
 export const clamp01 = (x: number): Unit => (x < 0 ? 0 : x > 1 ? 1 : Number.isFinite(x) ? x : 0);
+
+/**
+ * UI/content languages the product supports today. Language is DATA: adding one means adding a code here, a message
+ * catalogue in apps/mobile/src/i18n and (optionally) `name_i18n` entries — no schema change. `profiles.locale` stores it.
+ */
+export const SUPPORTED_LOCALES = ['en', 'hi'] as const;
+export type Locale = (typeof SUPPORTED_LOCALES)[number];
+export const DEFAULT_LOCALE: Locale = 'en';
+export const isSupportedLocale = (x: unknown): x is Locale =>
+  typeof x === 'string' && (SUPPORTED_LOCALES as readonly string[]).includes(x);
+
+/**
+ * Self-reported approximate preparation level captured at onboarding (`learner_profiles.preparation_level`).
+ * It only seeds the cold-start ability prior; real evidence from graded answers takes over quickly.
+ */
+export const PREPARATION_LEVELS = ['beginner', 'intermediate', 'advanced'] as const;
+export type PreparationLevel = (typeof PREPARATION_LEVELS)[number];
+export const PREPARATION_ABILITY_PRIOR: Record<PreparationLevel, number> = {
+  beginner: 0.35,
+  intermediate: 0.5,
+  advanced: 0.65,
+};

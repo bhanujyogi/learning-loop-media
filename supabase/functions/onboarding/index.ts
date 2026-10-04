@@ -1,4 +1,5 @@
 import { completeOnboarding } from '@learning-loop/database';
+import { isSupportedLocale, PREPARATION_LEVELS } from '@learning-loop/shared';
 import { errorResponse, json, requireUser, sql } from '../_shared/runtime.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -23,6 +24,8 @@ Deno.serve(async (req) => {
       examDate,
       educationLevel:
         typeof b?.educationLevel === 'string' ? b.educationLevel.slice(0, 40) : undefined,
+      language: isSupportedLocale(b?.language) ? b.language : undefined,
+      preparationLevel: PREPARATION_LEVELS.find((l) => l === b?.preparationLevel),
       interestSubjectIds: interests,
     });
     return json(200, { ok: true });

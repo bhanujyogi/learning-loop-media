@@ -26,7 +26,8 @@ describe('dev seed', () => {
         `select c.type, v.body, k.answer, k.explanation from content_items c join content_versions v on v.id = c.current_version_id left join content_answer_keys k on k.content_version_id = v.id`,
       )
     ).rows;
-    expect(rows.length).toBe(6);
+    // 6 English + 3 clearly-synthetic Hindi dev items (language preference is exercisable end to end)
+    expect(rows.length).toBe(9);
     for (const r of rows) {
       if (r.type === 'note') expect(noteBody.safeParse(r.body).success).toBe(true);
       if (r.type === 'flashcard') expect(flashcardBody.safeParse(r.body).success).toBe(true);

@@ -37,6 +37,11 @@ export interface FeedItem {
   position: number;
   recommendationId: string;
   isExploration: boolean;
+  /** Content language (`content_items.language`). The feed only serves the learner's language plus English. */
+  language: string;
+  /** Author's user id for user/creator content (followable); null for official content. */
+  creatorUserId: string | null;
+  official: boolean;
 }
 export interface FeedResponse {
   recommendationId: string | null;
@@ -62,6 +67,8 @@ interface Row {
   subject: string | null;
   concepts: string[] | null;
   ownership: string;
+  language: string;
+  owner_user_id: string | null;
   body: unknown;
 }
 
@@ -69,7 +76,7 @@ const FEEDABLE = `('video','note','question','flashcard','interactive','lesson',
 const BASE = `
   select c.id, c.type::text as type, c.title, c.format::text as format, c.hook::text as hook, c.difficulty, coalesce(c.owner_user_id::text, c.owner_org_id::text) as creator,
          c.freshness::text as freshness, c.moderation::text as moderation, extract(epoch from (now() - c.published_at)) / 3600.0 as age_hours,
-         st.quality_score as quality, st.learning_gain, coalesce(st.like_count, 0)::int as likes, c.ownership::text as ownership, v.body,
+         st.quality_score as quality, st.learning_gain, coalesce(st.like_count, 0)::int as likes, c.ownership::text as ownership, c.language, c.owner_user_id::text as owner_user_id, v.body,
          (select s.id::text from content_concepts cc join concepts co on co.id = cc.concept_id join topics t on t.id = co.topic_id
             join chapters ch on ch.id = t.chapter_id join subjects s on s.id = ch.subject_id where cc.content_id = c.id order by cc.role limit 1) as subject,
          (select array_agg(concept_id::text) from content_concepts where content_id = c.id) as concepts
@@ -78,7 +85,10 @@ const BASE = `
     left join content_stats st on st.content_id = c.id
    where c.publishing = 'published' and c.deleted_at is null and c.type::text in ${FEEDABLE}
      and c.moderation in ('none','cleared','pending_review') and c.freshness in ('current','needs_review')
-     and not (c.owner_user_id is not null and app.is_blocked_between($1, c.owner_user_id))`;
+     and not (c.owner_user_id is not null and app.is_blocked_between($1, c.owner_user_id))
+     -- language preference (profiles.locale) is an ELIGIBILITY rule, not a score change: the learner's language plus English
+     -- as the universal fallback, so a Hindi learner is never shown an empty feed while Hindi inventory is still small.
+     and c.language = any(array['en', coalesce((select p.locale from profiles p where p.id = $1), 'en')])`;
 
 const roleOf = (r: Row, review: boolean): SequenceRole | undefined => {
   if (review) return 'review';
@@ -217,6 +227,18 @@ async function getFeedInTx(sql: Sql, req: FeedRequest): Promise<FeedResponse> {
       ? { ...config, batchSize: Math.min(30, Math.floor(requested)) }
       : config;
   let f = await loadFeatures(sql, req.userId);
+  // The follows table is the source of truth for who the learner follows (RLS: app_server sees only the bound user's edges).
+  const follows = await sql.query<{ followee_id: string }>(
+    `select followee_id::text as followee_id from follows where follower_id = $1`,
+    [req.userId],
+  );
+  if (follows.length)
+    f = {
+      ...f,
+      followedCreatorIds: [
+        ...new Set([...f.followedCreatorIds, ...follows.map((x) => x.followee_id)]),
+      ],
+    };
 
   const pool = new Map<string, { row: Row; sources: Set<CandidateSource> }>();
   const add = (rows: Row[], source: CandidateSource) => {
@@ -466,6 +488,9 @@ async function getFeedInTx(sql: Sql, req: FeedRequest): Promise<FeedResponse> {
       position: it.position,
       recommendationId: rec,
       isExploration: it.isExploration,
+      language: r.language,
+      creatorUserId: r.owner_user_id,
+      official: r.ownership === 'official',
     });
   }
   await saveFeatures(sql, f);

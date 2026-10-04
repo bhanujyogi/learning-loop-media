@@ -94,6 +94,39 @@ begin
   end loop;
 end $$;
 
+-- Hindi DEV items (synthetic; language = 'hi'): just enough that the language preference is exercisable end to end.
+-- These are authored for development only and have NOT been reviewed by a Hindi subject editor. Real bilingual content
+-- comes from the (separate) content pipeline with provenance — never from this seed.
+do $$
+declare
+  org uuid := '00000000-0000-0000-0000-0000000000a1'; pid uuid := '00000000-0000-0000-0000-0000000000b1';
+  v uuid; rec record;
+begin
+  for rec in select * from (values
+    ('60000000-0000-0000-0000-000000000007'::uuid, 'note', 'ओम का नियम — 60 सेकंड में', 'curiosity', 'note', 0.3, '50000000-0000-0000-0000-000000000004'::uuid,
+      '{"blocks":[{"type":"heading","level":1,"text":"ओम का नियम"},{"type":"paragraph","text":"ओमीय चालक के लिए वोल्टेज V, धारा I और प्रतिरोध R के गुणनफल के बराबर होता है।"},{"type":"formula","latex":"V = I \\times R"},{"type":"callout","kind":"example","text":"5 ओम के प्रतिरोध से 2 A धारा गुज़ारने के लिए 10 V चाहिए।"},{"type":"revision_prompt","prompt":"यदि V स्थिर रहे और R दोगुना हो जाए, तो I का क्या होगा?"}]}'::jsonb,
+      null::jsonb, null::text),
+    ('60000000-0000-0000-0000-000000000008'::uuid, 'question', 'प्रतिरोध की इकाई', 'challenge', 'question', 0.25, '50000000-0000-0000-0000-000000000004'::uuid,
+      '{"type":"single_choice","prompt":"विद्युत प्रतिरोध की SI इकाई क्या है?","options":[{"id":"a","text":"ओम"},{"id":"b","text":"वोल्ट"},{"id":"c","text":"एम्पीयर"},{"id":"d","text":"वाट"}]}'::jsonb,
+      '{"optionId":"a"}'::jsonb, 'प्रतिरोध को ओम (प्रतीक Ω) में मापा जाता है, जिसका नाम जॉर्ज ओम के नाम पर रखा गया है।'),
+    ('60000000-0000-0000-0000-000000000009'::uuid, 'question', 'राजस्थान की राजधानी', 'question', 'question', 0.15, '50000000-0000-0000-0000-000000000005'::uuid,
+      '{"type":"true_false","prompt":"राजस्थान की राजधानी जयपुर है।"}'::jsonb,
+      '{"value":true}'::jsonb, 'जयपुर, जिसे गुलाबी नगरी भी कहा जाता है, राजस्थान की राजधानी है।')
+  ) as t(id, type, title, hook, format, difficulty, concept, body, answer, explanation) loop
+    insert into content_items(id, type, title, language, ownership, owner_org_id, publishing_identity_id, source_type, verification, publishing, moderation, hook, format, difficulty, learning_objective, published_at, latest_version_no)
+      values (rec.id, rec.type::content_type, rec.title, 'hi', 'official', org, pid, 'original', 'official', 'published', 'none', rec.hook::hook_type, rec.format::format_type, rec.difficulty, 'Synthetic dev content (hi)', now(), 1);
+    insert into content_versions(content_id, version_no, state, body, frozen_at) values (rec.id, 1, 'published', rec.body, now()) returning id into v;
+    update content_items set current_version_id = v where id = rec.id;
+    if rec.answer is not null then
+      insert into content_answer_keys(content_version_id, answer, explanation) values (v, rec.answer, rec.explanation);
+    end if;
+    insert into content_concepts(content_id, concept_id, role) values (rec.id, rec.concept, case when rec.type = 'question' then 'assesses' else 'primary' end);
+    insert into content_exams(content_id, exam_id) select rec.id, id from exams;
+    insert into content_provenance(content_version_id, generated_by, process_name, publishing_identity_id, validation_status, review_status)
+      values (v, 'human', 'dev-seed', pid, 'passed', 'reviewed');
+  end loop;
+end $$;
+
 -- ranking_v1 is created by migration 20260102000003 (authoritative config); not seeded.
 
 insert into achievements(code, name, description, criteria) values
