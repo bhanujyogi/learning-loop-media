@@ -48,3 +48,9 @@ report impersonation/dup, moderation function permission, audit append-only, blo
 | H2      | No client INSERT policy or privilege on `events`; only the sanitising server path (`app_server`) writes events                                                                                                                                                                                                                                                                            |
 | H3      | Reports are weighted server-side (accounts < 7 days old count 0.2); 3.0 total weight auto-flags only **non-official** content that is not already human-cleared; official/cleared content raises `moderation_cases.priority`/`escalated` for a human instead                                                                                                                              |
 | Medium  | random public handles (no email leakage), reserved usernames and `is_creator` staff-managed, media rows confined to the owner's key prefix and own content, moderators can no longer read other users' drafts, rate-limit check serialised by advisory lock, staff policy for creator trust                                                                                               |
+
+## Client privilege layer (2026-10-04)
+
+Policies alone were not the whole story on Supabase: default ACLs grant `authenticated` ALL on new public tables. Migration `20260102000004_client_privilege_hardening.sql` (applied to hosted, tested locally) removes
+TRUNCATE/REFERENCES/TRIGGER from `authenticated` everywhere and INSERT/UPDATE/DELETE from every table that has no authenticated/public write policy. Verified on hosted by catalog queries (no tables left with those privileges
+among the learner-integrity set). Behavioural hosted attack tests remain unverified; any new table still inherits default grants until reviewed.

@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-_Last updated: 2026-10-02 (security remediation milestone). Read this first; then `CLAUDE.md`; then `docs/ROADMAP.md`._
+_Last updated: 2026-10-04 (hosted privilege-hardening milestone). Read this first; then `CLAUDE.md`; then `docs/ROADMAP.md`._
 
 ## Summary
 
@@ -100,3 +100,20 @@ Edge Functions on the Supabase Edge Runtime (JWT verification with `getUser`, `p
 1. `supabase start`, apply migrations+seed, serve functions, point the mobile app/admin at it; fix integration drift; add a Supabase-local CI job.
 2. Run the mobile app on a real device; fix layout/gesture issues; add Maestro E2E for sign-up→onboarding→feed→answer.
 3. Creator flow + media finaliser. 4. Scheduled workers. 5. First licensed official content via the pipeline.
+
+## Hosted Supabase state (2026-10-04) — dedicated Learning Loop project
+
+**Applied and verified on the hosted project (Management API + read-only catalog queries):**
+
+- All 17 migrations are applied (history has 17 rows, last `client_privilege_hardening`). Hosted history versions are apply-time timestamps, not the repo file versions; names and order match.
+- 78 public tables, RLS enabled on all 78; 31 `SECURITY DEFINER` functions all with a fixed `search_path`; private `media` bucket + 4 `media_objects_*` policies.
+- `app_server`/`app_jobs`: NOLOGIN, NOINHERIT, not superuser, no BYPASSRLS, no write privilege on audit/roles/content/ranking/gates/keys/publishing/pipeline tables.
+- **Hardening migration `20260102000004_client_privilege_hardening.sql` is applied.** Supabase's default ACLs had given `authenticated` TRUNCATE/REFERENCES/TRIGGER everywhere and write grants on server-written tables.
+  Hosted check after apply: 0 public tables where `authenticated` holds TRUNCATE/REFERENCES/TRIGGER; 0 of the 12 learner-integrity tables (attempts, mastery, XP, features, reviews, progress, events, audit, quality signals, recommendations, stats) where it holds INSERT/UPDATE/DELETE.
+  Tables with an authenticated write policy (e.g. messages, likes, profiles) keep their grants by design. New tables still get Supabase's default grants for `authenticated` (INSERT/UPDATE/DELETE) — every new table needs an explicit review.
+- Edge Functions `feed`, `events`, `onboarding`, `submit-answer`, `jobs` are deployed (ACTIVE). Deployment only.
+
+**Local only** (`pnpm check` green, 129 database tests incl. the new privilege regression test, which fails without the migration): behavioural C1/C2/H1–H9 attack tests.
+
+**Still NOT verified on hosted:** Edge Function runtime behaviour (sandbox network blocks `*.supabase.co`); behavioural attack tests against hosted data (no DB login; SQL endpoint is read-only); Realtime authorization for messaging
+(no tables in the publication); advisor warnings on executable `SECURITY DEFINER` helper functions; mobile/device testing; production-scale performance. `site_url` is still localhost and `JOBS_SECRET` is unset (deliberately).
