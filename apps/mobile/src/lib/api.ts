@@ -62,6 +62,10 @@ export interface FeedItem {
   position: number;
   recommendationId: string;
   isExploration: boolean;
+  language: string;
+  /** Author's user id for user/creator content (followable); null for official content. */
+  creatorUserId: string | null;
+  official: boolean;
 }
 export interface FeedResponse {
   recommendationId: string | null;
@@ -80,6 +84,8 @@ export interface SubmitAnswerResponse {
   nextReviewAt: number;
   achievements: string[];
   replayed: boolean;
+  /** Same question answered again within 24 h: reduced learning evidence and no repeat XP (server rule). */
+  repeatAttempt: boolean;
 }
 
 export const api = {
@@ -100,5 +106,7 @@ export const api = {
     examDate?: string;
     interestSubjectIds: string[];
     educationLevel?: string;
+    language?: string;
+    preparationLevel?: string;
   }) => call<{ ok: true }>('onboarding', { body: b }),
 };

@@ -14,3 +14,8 @@ export function mergeBatch<T extends { contentId: string }>(existing: T[], incom
   const seen = new Set(existing.map((e) => e.contentId));
   return [...existing, ...incoming.filter((i) => !seen.has(i.contentId))];
 }
+/** Put a freshly fetched batch ABOVE the current list (pull-to-refresh), skipping anything already present. */
+export function prependBatch<T extends { contentId: string }>(existing: T[], incoming: T[]): T[] {
+  const seen = new Set(existing.map((e) => e.contentId));
+  return [...incoming.filter((i) => !seen.has(i.contentId)), ...existing];
+}

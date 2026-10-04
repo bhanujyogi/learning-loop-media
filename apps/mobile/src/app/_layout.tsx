@@ -1,53 +1,74 @@
-import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { I18nProvider, useI18n } from '../i18n/I18nProvider';
+import { useAccount } from '../lib/account';
 import { AuthProvider, useAuth } from '../lib/auth';
 import { isConfigured } from '../lib/env';
-import { supabase } from '../lib/supabase';
-import { EmptyState, LoadingState } from '../ui/primitives';
+import { useTheme } from '../theme/useTheme';
+import { EmptyState, ErrorState, LoadingState } from '../ui/primitives';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
 });
 
+/**
+ * Routing gate: unauthenticated → /sign-in; authenticated but not onboarded → /onboarding; otherwise the app.
+ * This is UX only. Authorization is enforced in Postgres (RLS) and the Edge Functions, never by this redirect.
+ */
 function Gate() {
   const { session, loading } = useAuth();
+  const { t } = useI18n();
+  const { colors } = useTheme();
+  const qc = useQueryClient();
   const segments = useSegments();
   const router = useRouter();
+  const account = useAccount();
   const uid = session?.user.id;
-  const onboarded = useQuery({
-    queryKey: ['onboarded', uid],
-    enabled: !!uid,
-    queryFn: async () =>
-      (
-        await supabase
-          .from('learner_profiles')
-          .select('onboarding_completed')
-          .eq('user_id', uid!)
-          .maybeSingle()
-      ).data?.onboarding_completed ?? false,
-  });
   const first = segments[0] as string | undefined;
+
+  // A different user (or sign-out) must never see the previous user's cached rows.
+  const lastUid = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (lastUid.current !== uid) {
+      if (lastUid.current !== undefined || uid === undefined) qc.clear();
+      lastUid.current = uid;
+    }
+  }, [uid, qc]);
+
   useEffect(() => {
     if (loading) return;
-    if (!session && first !== 'sign-in') router.replace('/sign-in');
-    else if (session && onboarded.isSuccess) {
-      if (!onboarded.data && first !== 'onboarding') router.replace('/onboarding');
-      else if (onboarded.data && (first === 'sign-in' || first === 'onboarding'))
+    if (!session) {
+      if (first !== 'sign-in') router.replace('/sign-in');
+    } else if (account.isSuccess) {
+      if (!account.data.onboarded && first !== 'onboarding') router.replace('/onboarding');
+      else if (account.data.onboarded && (first === 'sign-in' || first === 'onboarding'))
         router.replace('/');
     }
-  }, [loading, session, onboarded.isSuccess, onboarded.data, first, router]);
+  }, [loading, session, account.isSuccess, account.data?.onboarded, first, router]);
+
   if (!isConfigured())
-    return (
-      <EmptyState
-        title="App not configured"
-        message="Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY (see .env.example)."
-      />
-    );
-  if (loading || (session && onboarded.isLoading)) return <LoadingState />;
-  return <Slot />;
+    return <EmptyState glyph="🔧" title={t('config.title')} message={t('config.body')} />;
+  if (loading || (session && account.isLoading)) return <LoadingState />;
+  if (session && account.isError)
+    return <ErrorState offline onRetry={() => void account.refetch()} />;
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.bg },
+      }}
+    >
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="sign-in" />
+      <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="content/[id]" options={{ presentation: 'card' }} />
+      <Stack.Screen name="saved" />
+      <Stack.Screen name="user/[id]" />
+    </Stack>
+  );
 }
 
 export default function RootLayout() {
@@ -55,8 +76,10 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <StatusBar style="auto" />
-          <Gate />
+          <I18nProvider>
+            <StatusBar style="auto" />
+            <Gate />
+          </I18nProvider>
         </AuthProvider>
       </QueryClientProvider>
     </SafeAreaProvider>

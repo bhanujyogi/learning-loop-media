@@ -1,139 +1,47 @@
-import { interactiveDefinition } from '@learning-loop/validation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, useWindowDimensions, View, type ViewToken } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api, ApiError, type FeedItem } from '../../lib/api';
+import { FlatList, RefreshControl, View, type ViewToken } from 'react-native';
+import { useI18n } from '../../i18n/I18nProvider';
+import type { FeedItem } from '../../lib/api';
 import { track } from '../../lib/event-queue';
-import { mediaState, mergeBatch, shouldFetchMore } from '../../lib/feed-window';
-import { supabase } from '../../lib/supabase';
-import { space } from '../../theme/tokens';
+import { mediaState, shouldFetchMore } from '../../lib/feed-window';
+import { useFeed } from '../../lib/use-feed';
+import { useNotice } from '../../lib/use-notice';
+import { useReactions } from '../../lib/use-reactions';
 import { useTheme } from '../../theme/useTheme';
-import { Button, Card, EmptyState, ErrorState, LoadingState, Text } from '../../ui/primitives';
-import { InteractiveRenderer } from '../interactive/InteractiveRenderer';
-import { FlashcardCard, NoteCard, VideoCard } from './MediaCards';
-import { QuestionCard } from './QuestionCard';
+import { EmptyState, ErrorState, Button, Text } from '../../ui/primitives';
+import { FeedCardSkeleton } from '../../ui/Skeleton';
+import { Toast } from '../../ui/Toast';
+import { FeedCard } from './FeedCard';
+import { SessionStrip } from './SessionStrip';
 
-type Body = Record<string, unknown>;
+// Must be a stable object: React Native does not support changing viewabilityConfig on a mounted list.
+const VIEWABILITY = { itemVisiblePercentThreshold: 80 } as const;
 
-function Social({ item }: { item: FeedItem }) {
-  const [liked, setLiked] = useState(false);
-  const [saved, setSaved] = useState(false);
-  // Optimistic: flip immediately, roll back on failure.
-  const toggle = async (
-    table: 'likes' | 'saves',
-    on: boolean,
-    set: (v: boolean) => void,
-    ev: string,
-    undo: string,
-  ) => {
-    set(!on);
-    const { data } = await supabase.auth.getUser();
-    const uid = data.user?.id;
-    if (!uid) {
-      set(on);
-      return;
-    }
-    const q = on
-      ? supabase.from(table).delete().eq('user_id', uid).eq('content_id', item.contentId)
-      : supabase.from(table).insert({ user_id: uid, content_id: item.contentId });
-    const { error } = await q;
-    if (error) set(on);
-    else
-      track(on ? undo : ev, {
-        content_id: item.contentId,
-        recommendation_id: item.recommendationId,
-      });
-  };
-  return (
-    <View style={{ flexDirection: 'row', gap: space.sm }}>
-      <Button
-        variant="secondary"
-        label={liked ? '♥ Liked' : '♡ Like'}
-        onPress={() => toggle('likes', liked, setLiked, 'like', 'unlike')}
-      />
-      <Button
-        variant="secondary"
-        label={saved ? '★ Saved' : '☆ Save'}
-        onPress={() => toggle('saves', saved, setSaved, 'save', 'unsave')}
-      />
-    </View>
-  );
-}
-
-function CardBody({
-  item,
-  active,
-  preload,
-}: {
-  item: FeedItem;
-  active: boolean;
-  preload: boolean;
-}) {
-  const body = item.body as Body;
-  switch (item.type) {
-    case 'question':
-      return (
-        <QuestionCard
-          contentId={item.contentId}
-          recommendationId={item.recommendationId}
-          body={body as never}
-        />
-      );
-    case 'note':
-      return <NoteCard body={body as never} />;
-    case 'flashcard':
-      return <FlashcardCard body={body as never} />;
-    case 'video':
-      return <VideoCard body={body as never} active={active} preload={preload} />;
-    case 'interactive': {
-      const parsed = interactiveDefinition.safeParse(body);
-      return parsed.success ? (
-        <InteractiveRenderer contentId={item.contentId} def={parsed.data} />
-      ) : (
-        <Text muted>This interactive isn’t supported in this app version.</Text>
-      );
-    }
-    default:
-      return <Text muted>This content type isn’t supported in this app version yet.</Text>;
-  }
-}
-
+/** Vertical, paged, virtualised learning feed backed by the server's ranking pipeline. */
 export function FeedScreen() {
-  const { height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+  const { t } = useI18n();
   const { colors } = useTheme();
-  const pageH = height - insets.top - insets.bottom - 64; // minus tab bar
-  const [items, setItems] = useState<FeedItem[]>([]);
+  const feed = useFeed();
+  const { notice, show } = useNotice();
+  const [pageH, setPageH] = useState(0);
   const [active, setActive] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [exhausted, setExhausted] = useState(false);
-  const [error, setError] = useState<ApiError | null>(null);
-  const fetching = useRef(false);
+  const list = useRef<FlatList<FeedItem>>(null);
   const enteredAt = useRef<{ id: string; at: number; rec: string } | null>(null);
 
-  const load = useCallback(async () => {
-    if (fetching.current) return;
-    fetching.current = true;
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await api.feed(10);
-      setItems((cur) => mergeBatch(cur, r.items));
-      setExhausted(r.exhausted && r.items.length === 0);
-    } catch (e) {
-      setError(e instanceof ApiError ? e : new ApiError(500, 'error'));
-    } finally {
-      fetching.current = false;
-      setLoading(false);
-    }
-  }, []);
-  useEffect(() => {
-    void load();
-  }, [load]);
-  useEffect(() => {
-    if (shouldFetchMore(active, items.length, fetching.current, exhausted) && items.length)
-      void load();
-  }, [active, items.length, exhausted, load]);
+  const reactions = useReactions(
+    feed.items.map((i) => i.contentId),
+    feed.items.flatMap((i) => (i.creatorUserId ? [i.creatorUserId] : [])),
+    useCallback(() => show(t('social.actionError')), [show, t]),
+  );
+
+  // The viewability callback must be stable, so it reads the latest state through a ref.
+  const live = useRef({ total: 0, paging: false, exhausted: false, loadMore: feed.loadMore });
+  live.current = {
+    total: feed.items.length,
+    paging: feed.paging,
+    exhausted: feed.exhausted,
+    loadMore: feed.loadMore,
+  };
 
   const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken<FeedItem>[] }) => {
     const v = viewableItems[0];
@@ -165,71 +73,111 @@ export function FeedScreen() {
       });
     }
     setActive(v.index);
+    const l = live.current;
+    if (shouldFetchMore(v.index, l.total, l.paging, l.exhausted)) void l.loadMore();
   }).current;
 
-  if (loading && !items.length) return <LoadingState label="Building your feed…" />;
-  if (error && !items.length) return <ErrorState offline={error.isOffline} onRetry={load} />;
-  if (!items.length)
-    return (
+  const goNext = useCallback(() => {
+    const next = active + 1;
+    if (next < feed.items.length) list.current?.scrollToIndex({ index: next, animated: true });
+    else if (!feed.exhausted) void feed.loadMore();
+  }, [active, feed]);
+
+  // Pull-to-refresh with nothing newer: say so instead of silently doing nothing.
+  useEffect(() => {
+    if (feed.upToDate) show(t('feed.upToDate'));
+  }, [feed.upToDate, show, t]);
+
+  let content: React.ReactNode;
+  if (pageH === 0) content = null;
+  else if (feed.loading && !feed.items.length) content = <FeedCardSkeleton />;
+  else if (feed.error && !feed.items.length)
+    content = <ErrorState offline={feed.error.isOffline} onRetry={() => void feed.retry()} />;
+  else if (!feed.items.length)
+    content = (
       <EmptyState
-        title="You're all caught up"
-        message="Nothing new right now. Check back soon, or review what you've learned in the Learn tab."
-        action={{ label: 'Refresh', onPress: load }}
+        glyph="🎉"
+        title={t('feed.caughtUp.title')}
+        message={t('feed.caughtUp.body')}
+        action={{ label: t('feed.refresh'), onPress: () => void feed.retry() }}
+      />
+    );
+  else
+    content = (
+      <FlatList
+        ref={list}
+        data={feed.items}
+        keyExtractor={(i) => i.contentId}
+        pagingEnabled
+        disableIntervalMomentum
+        snapToInterval={pageH}
+        decelerationRate="fast"
+        showsVerticalScrollIndicator={false}
+        getItemLayout={(_, index) => ({ length: pageH, offset: pageH * index, index })}
+        windowSize={3}
+        maxToRenderPerBatch={2}
+        initialNumToRender={2}
+        removeClippedSubviews
+        viewabilityConfig={VIEWABILITY}
+        onViewableItemsChanged={onViewable}
+        refreshControl={
+          <RefreshControl
+            refreshing={feed.refreshing}
+            onRefresh={() => void feed.refresh()}
+            accessibilityLabel={t('feed.refresh')}
+          />
+        }
+        ListFooterComponent={
+          feed.pagingError ? (
+            <View
+              style={{ height: pageH, alignItems: 'center', justifyContent: 'center', gap: 12 }}
+            >
+              <Text muted>{t('feed.moreError')}</Text>
+              <Button label={t('common.retry')} onPress={() => void feed.loadMore()} />
+            </View>
+          ) : feed.paging ? (
+            <View style={{ height: pageH }}>
+              <FeedCardSkeleton />
+            </View>
+          ) : feed.exhausted ? (
+            <View style={{ height: pageH }}>
+              <EmptyState
+                glyph="🎉"
+                title={t('feed.caughtUp.title')}
+                message={t('feed.caughtUp.body')}
+                action={{ label: t('feed.refresh'), onPress: () => void feed.refresh() }}
+              />
+            </View>
+          ) : null
+        }
+        renderItem={({ item, index }) => {
+          const m = mediaState(index, active);
+          // Far-away cards keep their slot (so scroll offsets stay exact) but release heavy content.
+          return m === 'released' ? (
+            <View style={{ height: pageH }} />
+          ) : (
+            <FeedCard
+              item={item}
+              index={index}
+              total={feed.items.length}
+              height={pageH}
+              active={m === 'active'}
+              preload={m === 'preload'}
+              reactions={reactions}
+              onNext={goNext}
+            />
+          );
+        }}
       />
     );
 
   return (
-    <FlatList
-      data={items}
-      keyExtractor={(i) => i.contentId}
-      pagingEnabled
-      snapToInterval={pageH}
-      decelerationRate="fast"
-      showsVerticalScrollIndicator={false}
-      getItemLayout={(_, index) => ({ length: pageH, offset: pageH * index, index })}
-      windowSize={3}
-      maxToRenderPerBatch={2}
-      initialNumToRender={2}
-      removeClippedSubviews
-      viewabilityConfig={{ itemVisiblePercentThreshold: 80 }}
-      onViewableItemsChanged={onViewable}
-      ListFooterComponent={
-        exhausted ? (
-          <View style={{ height: pageH }}>
-            <EmptyState
-              title="You're all caught up"
-              message="That's everything for now."
-              action={{ label: 'Refresh', onPress: load }}
-            />
-          </View>
-        ) : null
-      }
-      renderItem={({ item, index }) => {
-        const m = mediaState(index, active);
-        return (
-          <View style={{ height: pageH, padding: space.lg, backgroundColor: colors.bg }}>
-            <Card style={{ flex: 1, gap: space.md, justifyContent: 'space-between' }}>
-              <View style={{ gap: space.sm, flexShrink: 1 }}>
-                <Text
-                  variant="caption"
-                  muted
-                  accessibilityLabel={`${item.format ?? item.type}${item.hook ? ', ' + item.hook : ''}`}
-                >
-                  {(item.format ?? item.type).toUpperCase()}
-                  {item.hook ? ` · ${item.hook}` : ''}
-                </Text>
-                <Text variant="title" accessibilityRole="header">
-                  {item.title}
-                </Text>
-                {m !== 'released' ? (
-                  <CardBody item={item} active={m === 'active'} preload={m === 'preload'} />
-                ) : null}
-              </View>
-              <Social item={item} />
-            </Card>
-          </View>
-        );
-      }}
-    />
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <SessionStrip />
+      <View style={{ flex: 1 }} onLayout={(e) => setPageH(Math.floor(e.nativeEvent.layout.height))}>
+        {content}
+        <Toast message={notice} />
+      </View>
+    </View>
   );
 }

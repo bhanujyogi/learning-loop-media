@@ -1,7 +1,12 @@
 import { useColorScheme } from 'react-native';
-import { palette, type Colors } from './tokens';
+import { kindPalette, palette, type Colors, type Kind } from './tokens';
 
-export function useTheme(): { colors: Colors; dark: boolean } {
+export function useTheme(): {
+  colors: Colors;
+  dark: boolean;
+  kind: (k: Kind) => { fg: string; bg: string };
+} {
   const dark = useColorScheme() === 'dark';
-  return { colors: dark ? palette.dark : palette.light, dark };
+  const kinds = dark ? kindPalette.dark : kindPalette.light;
+  return { colors: dark ? palette.dark : palette.light, dark, kind: (k) => kinds[k] };
 }

@@ -2,6 +2,7 @@ import type { InteractiveDefinition } from '@learning-loop/validation';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { useI18n } from '../../i18n/I18nProvider';
 import { track } from '../../lib/event-queue';
 import { HIT, radius, space } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
@@ -18,6 +19,7 @@ export function InteractiveRenderer({
   contentId: string;
   def: InteractiveDefinition;
 }) {
+  const { t } = useI18n();
   const done = (score: number, durationMs: number) =>
     track('interaction_completed', {
       content_id: contentId,
@@ -37,9 +39,7 @@ export function InteractiveRenderer({
     case 'map':
       return <MapView def={def} onDone={done} />;
     case 'diagram':
-      return (
-        <Text muted>Diagram hotspots need the media pipeline (not configured in this build).</Text>
-      );
+      return <Text muted>{t('int.diagram')}</Text>;
   }
 }
 
@@ -55,6 +55,7 @@ function TapReveal({
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [t0] = useState(Date.now());
   const { colors } = useTheme();
+  const { t } = useI18n();
   const toggle = (id: string) => {
     const n = new Set(open);
     n.add(id);
@@ -67,7 +68,9 @@ function TapReveal({
         <Pressable
           key={it.id}
           accessibilityRole="button"
-          accessibilityLabel={open.has(it.id) ? `${it.label}: ${it.reveal}` : `Reveal ${it.label}`}
+          accessibilityLabel={
+            open.has(it.id) ? `${it.label}: ${it.reveal}` : t('int.reveal', { label: it.label })
+          }
           onPress={() => toggle(it.id)}
           style={{
             minHeight: HIT,
@@ -79,7 +82,7 @@ function TapReveal({
           }}
         >
           <Text variant="label">{it.label}</Text>
-          {open.has(it.id) ? <Text>{it.reveal}</Text> : <Text muted>Tap to reveal</Text>}
+          {open.has(it.id) ? <Text>{it.reveal}</Text> : <Text muted>{t('int.tapToReveal')}</Text>}
         </Pressable>
       ))}
     </View>
@@ -97,6 +100,7 @@ function Ordering({
   const [picked, setPicked] = useState<string[]>([]);
   const [result, setResult] = useState<boolean | null>(null);
   const [t0] = useState(Date.now());
+  const { t } = useI18n();
   const label = (id: string) => def.items.find((i) => i.id === id)?.text ?? id;
   const check = () => {
     const ok = picked.every((p, i) => p === def.order[i]);
@@ -108,7 +112,7 @@ function Ordering({
   };
   return (
     <View style={{ gap: space.sm }}>
-      <Text muted>Tap the items in the correct order.</Text>
+      <Text muted>{t('int.tapOrder')}</Text>
       {shuffled.map((it) => (
         <Button
           key={it.id}
@@ -119,15 +123,17 @@ function Ordering({
         />
       ))}
       {picked.length === def.items.length && result === null ? (
-        <Button label="Check order" onPress={check} />
+        <Button label={t('int.checkOrder')} onPress={check} />
       ) : null}
       {result !== null ? (
         <Text accessibilityLiveRegion="polite" variant="label">
-          {result ? '✓ Correct order' : `✗ Not quite. Correct: ${def.order.map(label).join(' → ')}`}
+          {result
+            ? t('int.correctOrder')
+            : t('int.wrongOrder', { order: def.order.map(label).join(' → ') })}
         </Text>
       ) : null}
       {picked.length > 0 && result === null ? (
-        <Button variant="ghost" label="Reset" onPress={() => setPicked([])} />
+        <Button variant="ghost" label={t('int.reset')} onPress={() => setPicked([])} />
       ) : null}
     </View>
   );
@@ -140,6 +146,7 @@ function Matching({
   def: Extract<InteractiveDefinition, { kind: 'matching' }>;
   onDone: Done;
 }) {
+  const { t } = useI18n();
   const [left, setLeft] = useState<string | null>(null);
   const [pairs, setPairs] = useState<Record<string, string>>({});
   const [t0] = useState(Date.now());
@@ -156,7 +163,7 @@ function Matching({
   const complete = Object.keys(pairs).length === def.pairs.length;
   return (
     <View style={{ gap: space.sm }}>
-      <Text muted>Tap an item on the left, then its match.</Text>
+      <Text muted>{t('int.tapMatch')}</Text>
       {def.left.map((l) => (
         <Button
           key={l.id}
@@ -178,7 +185,10 @@ function Matching({
       ))}
       {complete ? (
         <Text accessibilityLiveRegion="polite" variant="label">
-          {def.pairs.filter((p) => pairs[p.left] === p.right).length} of {def.pairs.length} correct
+          {t('int.pairsCorrect', {
+            ok: def.pairs.filter((p) => pairs[p.left] === p.right).length,
+            total: def.pairs.length,
+          })}
         </Text>
       ) : null}
     </View>
@@ -218,6 +228,7 @@ function MapView({
   onDone: Done;
 }) {
   const { colors } = useTheme();
+  const { t } = useI18n();
   const [sel, setSel] = useState<string | null>(null);
   const [seen, setSeen] = useState<Set<string>>(new Set());
   const [t0] = useState(Date.now());
@@ -235,7 +246,7 @@ function MapView({
         viewBox={def.viewBox.join(' ')}
         width="100%"
         height={260}
-        accessibilityLabel="Interactive map"
+        accessibilityLabel={t('int.map')}
       >
         {def.regions.map((r) => (
           <Path
@@ -251,8 +262,10 @@ function MapView({
       </Svg>
       <Text accessibilityLiveRegion="polite" variant="label">
         {region
-          ? `${region.name}${region.capital ? ' — capital: ' + region.capital : ''}`
-          : 'Tap a region'}
+          ? region.capital
+            ? t('int.capital', { name: region.name, capital: region.capital })
+            : region.name
+          : t('int.tapRegion')}
       </Text>
       {region?.info ? <Text muted>{region.info}</Text> : null}
     </View>
