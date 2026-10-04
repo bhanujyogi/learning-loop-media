@@ -1,6 +1,6 @@
 # Testing
 
-`pnpm test` runs everything (Vitest). Current suites (234 tests at last run):
+`pnpm test` runs everything (Vitest). Current suites (287 tests at last run):
 
 | Area                    | Where                      | What                                                                                                                                                                                                                                                                       |
 | ----------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -16,7 +16,8 @@
 | **DB: loop**            | `database/test/loop`       | onboarding→feed→answer→mastery→weak→next feed; idempotency; delayed recall; FSRS; events cannot forge mastery; experiments; four additional candidate sources                                                                                                              |
 | **DB: jobs**            | `database/test/jobs`       | quality loop (flagging, evidence-only difficulty, idempotency, recovery rate), retention by taxonomy, review-reminder dedupe and preferences                                                                                                                               |
 | **DB: client guard**    | `database/test/client`     | `createPublicClient` refuses service-role/secret keys                                                                                                                                                                                                                      |
-| Mobile logic            | `apps/mobile`              | event queue (cap/backoff), feed windowing, uuid                                                                                                                                                                                                                            |
+| Mobile logic            | `apps/mobile`              | event queue, feed windowing/prepend, uuid; **i18n parity (keys, placeholders, plurals, fallback)**, locale resolution, auth validation/error mapping, onboarding rules, question/option-state modelling, session stats, WCAG-AA contrast                                   |
+| **MVP backend**         | `database/test/mvp`        | language/level onboarding, language eligibility in the feed, locale privilege scope, follows→ranker, Hindi seed grading, mobile↔server type drift guards                                                                                                                   |
 | Builds (CI)             | `.github/workflows/ci.yml` | `next build` (admin), `expo export` (Metro bundle)                                                                                                                                                                                                                         |
 
 Harness: `packages/database/test/harness.ts` — PGlite + Supabase stub (roles anon/authenticated/service_role, `auth.users`, `auth.uid()`, minimal `storage`), `Actor` helper (`q`, `fails`, `denied`) to run SQL _as a user_.

@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-_Last updated: 2026-10-04 (hosted privilege-hardening milestone). Read this first; then `CLAUDE.md`; then `docs/ROADMAP.md`._
+_Last updated: 2026-10-04 (consumer mobile MVP milestone, on top of the hosted privilege-hardening milestone). Read this first; then `CLAUDE.md`; then `docs/ROADMAP.md`._
 
 ## Summary
 
@@ -13,7 +13,7 @@ It is a foundation for a product, **not a finished product**: see "Not verified"
 | Check                                               | Result                                                                                                                                                                                                                                                                 |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm typecheck` / `pnpm lint` / `prettier --check` | clean                                                                                                                                                                                                                                                                  |
-| `pnpm test`                                         | **234 tests pass** across 10 workspaces                                                                                                                                                                                                                                |
+| `pnpm test`                                         | **287 tests pass** across 10 workspaces (143 database, 44 mobile logic)                                                                                                                                                                                                |
 | Migrations                                          | all 16 apply on PGlite **and on a real PostgreSQL 16 cluster** (concurrency suite); RLS enabled on every public table; `anon` has no privileges                                                                                                                        |
 | Security / regression suites                        | 41 original security tests + `remediation` (C1, C2, H1, H2, H3, medium) + `integrity` (H4, H5, H6) + `recommendation-logging` (H9). Each audit attack has a regression test; those that exercise changed code were run against the old implementation and failed there |
 | **Concurrency (H8)**                                | real multi-connection PostgreSQL 16: 12 concurrent event batches and feed/answer/event races lose no updates; **fails 3/3 without `FOR UPDATE`**; stable over 5 consecutive runs with it                                                                               |
@@ -34,20 +34,20 @@ It is a foundation for a product, **not a finished product**: see "Not verified"
 ## Not built (by milestone — details in docs/ROADMAP.md)
 
 Creator UI & server media finaliser (upload validation exists as functions, not wired); official-pipeline workers (fetch/extract/generate) — intentionally absent; job _scheduling_ (jobs exist and are tested; no cron configured), feature-aggregation rollups, push delivery;
-profiles/follow/comment/notification/messaging UI; push notifications; local AI runtime + model management (abstraction only); admin editor/user management/analytics dashboards; diagnostic onboarding; alternative-representation resurfacing;
-saved_topic/adjacent/challenge/trending/related candidate sources; item-difficulty re-estimation job; content-quality improvement loop; search UI; i18n UI; accessibility audit; captions.
+comment/notification/messaging UI; creator-content profiles (a basic public profile + follow exist); push notifications; local AI runtime + model management (abstraction only); admin editor/user management/analytics dashboards; diagnostic onboarding; quiz submission contract + UI; language _preference boost_ in ranking (needs ranking_v2 + experiment); alternative-representation resurfacing;
+saved_topic/adjacent/challenge/trending/related candidate sources; item-difficulty re-estimation job; content-quality improvement loop; search UI; accessibility audit on a device; captions; Hindi copy review by a native editor.
 
 ## Required human inputs / secrets (none were invented)
 
-| Needed for                        | What                                                                                                                                                                 |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Running anything against Supabase | a Supabase project or local CLI stack; then `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_*` (see `.env.example`)                        |
-| Edge Functions                    | Supabase-provided `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_DB_URL` (server only)                                                                               |
-| Staff access                      | a trusted SQL session to grant the first `admin` role (`insert into user_roles(user_id, role) values (…, 'admin')`)                                                  |
-| Official publishing               | create a service user, add to `publishing_identity_members` for `ll-official`, grant `official_publisher`; its credentials live in a secrets store, never the client |
-| Real exam data                    | cited authoritative sources registered in `sources` before ingestion (seed exams are placeholders with no syllabus claims)                                           |
-| Local AI                          | device benchmarks + a vetted model licence (see docs/AI_ARCHITECTURE.md decision gate)                                                                               |
-| Store releases                    | EAS/Apple/Google accounts                                                                                                                                            |
+| Needed for                        | What                                                                                                                                                                                                                                    |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Running anything against Supabase | the hosted project's **URL** (`https://<ref>.supabase.co`, public) and anon/publishable key; then `apps/mobile/.env` with `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` (see `.env.example`). Never the service-role key |
+| Edge Functions                    | Supabase-provided `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_DB_URL` (server only)                                                                                                                                                  |
+| Staff access                      | a trusted SQL session to grant the first `admin` role (`insert into user_roles(user_id, role) values (…, 'admin')`)                                                                                                                     |
+| Official publishing               | create a service user, add to `publishing_identity_members` for `ll-official`, grant `official_publisher`; its credentials live in a secrets store, never the client                                                                    |
+| Real exam data                    | cited authoritative sources registered in `sources` before ingestion (seed exams are placeholders with no syllabus claims)                                                                                                              |
+| Local AI                          | device benchmarks + a vetted model licence (see docs/AI_ARCHITECTURE.md decision gate)                                                                                                                                                  |
+| Store releases                    | EAS/Apple/Google accounts                                                                                                                                                                                                               |
 
 ## Architecture deviations from the directive (documented in docs/DECISIONS.md)
 
@@ -55,13 +55,45 @@ Single `pipeline_jobs` table (not three); admin runs as the staff user (no servi
 
 ## Known issues / watch-outs
 
-- Mobile feed list grows within a session (no head trimming); bounded per batch.
+- Mobile feed list grows within a session (no head trimming); bounded per batch (6).
 - `learning_gain`/`quality_score` are computed by `aggregateContentQuality` only once it is scheduled; until then feed defaults apply.
 - `pruneRawData` deletes raw events and there is no per-user rollup yet — do not schedule it before a rollup exists if long-term event history is wanted.
 - `review_10` achievement defined, not awarded. `XP_CONFIG.dailyXpCap` is now enforced (see remediation).
 - Interaction results are tracked as events only; they don't update mastery.
 - `user_progress`/`user_achievements` are readable by any authenticated user (intentional public gamification).
 - Vitest pinned to ^3.2 (5.x exists); TypeScript ~5.9 in packages (mobile template uses ~6.0).
+
+## Consumer mobile MVP — 2026-10-04
+
+Goal: sign-up/in → onboarding → personalised feed → open content → answer → explanation → secure learning-state update → next recommendation, in English and Hindi. Details: `docs/MOBILE_MVP.md`, decisions in `docs/DECISIONS.md`. **Not production-ready.**
+
+### VERIFIED (run in this environment)
+
+- `pnpm check` (typecheck + lint + **287 tests**), `prettier --check`, `expo export --platform android` (Hermes bundle, 5.6 MB; contains no server-secret names — only the client's own "refuse a service key" guard string), `next build` (admin), and all 5 Edge Functions under real **Deno 2.9.6** (`deno check` + serve/probe, 12/12) with the changed `onboarding` function.
+- **Backend behaviour (PGlite, least-privileged `app_server`/`authenticated` roles):** language + preparation level through the existing onboarding path (`profiles.locale`, `learner_profiles.preparation_level`, ability prior); unsupported language/level are ignored; the service role can touch only the bound user's `locale` (column + row scope); the feed honours language as eligibility (English learners never get Hindi; Hindi learners get Hindi + English, never other languages; changing the preference changes the feed); follows reach the `followed_creator` candidate source; Hindi dev items are graded by the same server path with no key in the feed body; **mobile↔server type drift guards** (they found a real drift: the app type lacked `repeatAttempt`, now fixed and surfaced to the learner).
+- **Mobile logic (Vitest, 44 tests):** i18n (every locale has every key and identical placeholders, plural pairs, fallback, locale resolution), auth validation + error mapping (no account enumeration), onboarding payload/date rules, question response/option-state modelling, session stats, answer cache, feed prepend/merge/prefetch, WCAG-AA contrast of every text colour pair (it caught and I fixed one failing green).
+
+### NOT VERIFIED
+
+- **Anything against the real Supabase project.** The sandbox token cannot list projects (project-scoped) and the project URL is not in the repo, so I did **not** (a) apply migration `20260102000005_mvp_language_and_level.sql` to the hosted DB, (b) redeploy the `feed`/`onboarding` Edge Functions, (c) sign up/in against real GoTrue, or (d) read the anon/publishable key. Hosted DB is therefore **one migration behind this code** and the deployed `feed`/`onboarding` functions predate it. Needed from the owner: the project URL (see "Required human inputs").
+- Edge Functions on the Supabase Edge Runtime, real GoTrue email-confirmation flow (`site_url` is still localhost, so confirmation links would point at localhost), PostgREST behaviour of the new embeds (`saves → content_items`).
+- Component rendering of every screen (no component/E2E tests exist; logic is tested, JSX is compiled and bundled but never rendered).
+
+### MOCKED / SCAFFOLDED
+
+- **Mocked:** nothing in the app is mocked at runtime. Tests use PGlite with a stubbed `auth.uid()` (as before).
+- **Scaffolded / honest placeholders:** on-device AI (reports unavailable), video playback has no dev video, quiz/lesson/image/audio and matching/map **question** types show a truthful "not supported in this version" state, interactive `diagram` kind needs the media pipeline. Seed data is synthetic (6 English + 3 Hindi dev items).
+
+### REQUIRES REAL-DEVICE TESTING
+
+Layout on small/large phones and notches, nested scrolling inside the paged feed (card body vs. page swipe), pull-to-refresh at the top of a paged list, `expo-video` playback/mute, SecureStore session persistence across restarts, haptics, reduced-motion behaviour, Reanimated animations (entering/press/shimmer), keyboard handling on sign-in/onboarding, Hindi text rendering/wrapping and font coverage, screen-reader (TalkBack/VoiceOver) labels and touch-target sizes, offline event-queue flush, and whether the current Expo Go supports SDK 57 (otherwise an EAS development build).
+
+### Known limits introduced by the MVP
+
+- Language is an eligibility rule only (learner language + English); no Hindi-first boost until `ranking_v2` + an experiment.
+- Hindi UI strings are unreviewed machine-authored copy; `name_i18n` exists in the schema but the seed has no Hindi names, so exam/subject chips show English until populated.
+- Batch ranking marks a whole batch as seen when it is fetched (pre-existing); learning-state changes therefore reach the _next_ batch (~3 cards later), not the already-fetched ones.
+- Email-confirmation projects show a "check your email" state; with `site_url=localhost` that link will not work from a phone.
 
 ## Audit remediation — 2026-10-02 (CRITICAL + HIGH done; some MEDIUM done)
 
@@ -86,7 +118,7 @@ Medium items also fixed: random public handles (no email leakage), reserved user
 ### Remaining (not fixed in this milestone)
 
 - **MEDIUM:** mobile app calls `supabase.storage` directly (bypasses `StorageProvider`); RLS policies call `auth.uid()` per row (wrap as `(select auth.uid())` after measuring); exploration query sorts the catalogue by `md5` per request and `BASE` has correlated subqueries; per-subject ability and decay refresh only on answers; seen-set cap (500) lets content repeat; unbounded per-creator affinity map; no outbound licence/attribution display; syllabus tree is global (not per exam); `@learning-loop/database` mixes client/services/jobs/media; moderators' `analytics.read`-style cross-user views need dedicated views.
-- **LOW:** mobile like/save initial state, side effect inside a setState updater, `session!` assertions, fixed page-height guess, unused native deps (`expo-notifications`, `expo-image`, `expo-font`, `expo-splash-screen`), `appealed` state never set, admin CSP allows `'unsafe-inline'`, two TypeScript majors.
+- **LOW:** unused native deps (`expo-notifications`, `expo-image`, `expo-font`, `expo-splash-screen`) _(mobile like/save initial state, the setState side effect, `session!` assertions and the fixed page-height guess were fixed in the MVP milestone)_, `appealed` state never set, admin CSP allows `'unsafe-inline'`, two TypeScript majors.
 - **Design caveats introduced/kept:** XP mastery bonus can re-fire after decay (bounded by the daily cap); report weights are a heuristic (7-day / 0.2 / 3.0) pending real abuse data; propensities ignore the diversity-rejection step and exploit items have p=1 (exploration data is what makes off-policy evaluation possible); the training/evaluation job and reward definition for learned ranking are not built.
 
 ### Requires a real Supabase environment to verify
