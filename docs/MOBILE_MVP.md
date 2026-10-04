@@ -42,7 +42,7 @@ sign up / sign in → onboarding → personalised feed → open content → answ
 
 ## Running it (needs a person at a keyboard — nothing here has been run on a device)
 
-1. A Supabase project with all migrations applied (including `20260102000005_mvp_language_and_level.sql`) and the five Edge Functions deployed from this commit.
+1. A Supabase project with all migrations applied (including `20260102000005_mvp_language_and_level.sql`) and the Edge Functions deployed from this commit (done for the hosted project; see PROJECT_STATUS.md).
 2. Create `apps/mobile/.env` (never commit it) with the **public** values only:
    `EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co` and `EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon or sb_publishable_… key>`.
    The app refuses a service-role key by design.

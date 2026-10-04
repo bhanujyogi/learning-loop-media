@@ -13,7 +13,7 @@ It is a foundation for a product, **not a finished product**: see "Not verified"
 | Check                                               | Result                                                                                                                                                                                                                                                                 |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm typecheck` / `pnpm lint` / `prettier --check` | clean                                                                                                                                                                                                                                                                  |
-| `pnpm test`                                         | **287 tests pass** across 10 workspaces (143 database, 44 mobile logic)                                                                                                                                                                                                |
+| `pnpm test`                                         | **291 tests pass** across 10 workspaces (143 database, 48 mobile logic)                                                                                                                                                                                                |
 | Migrations                                          | all 16 apply on PGlite **and on a real PostgreSQL 16 cluster** (concurrency suite); RLS enabled on every public table; `anon` has no privileges                                                                                                                        |
 | Security / regression suites                        | 41 original security tests + `remediation` (C1, C2, H1, H2, H3, medium) + `integrity` (H4, H5, H6) + `recommendation-logging` (H9). Each audit attack has a regression test; those that exercise changed code were run against the old implementation and failed there |
 | **Concurrency (H8)**                                | real multi-connection PostgreSQL 16: 12 concurrent event batches and feed/answer/event races lose no updates; **fails 3/3 without `FOR UPDATE`**; stable over 5 consecutive runs with it                                                                               |
@@ -75,8 +75,8 @@ Goal: sign-up/in → onboarding → personalised feed → open content → answe
 
 ### NOT VERIFIED
 
-- **Anything against the real Supabase project.** The sandbox token cannot list projects (project-scoped) and the project URL is not in the repo, so I did **not** (a) apply migration `20260102000005_mvp_language_and_level.sql` to the hosted DB, (b) redeploy the `feed`/`onboarding` Edge Functions, (c) sign up/in against real GoTrue, or (d) read the anon/publishable key. Hosted DB is therefore **one migration behind this code** and the deployed `feed`/`onboarding` functions predate it. Needed from the owner: the project URL (see "Required human inputs").
-- Edge Functions on the Supabase Edge Runtime, real GoTrue email-confirmation flow (`site_url` is still localhost, so confirmation links would point at localhost), PostgREST behaviour of the new embeds (`saves → content_items`).
+- **Live calls to the real project from the sandbox** (sign-up/in, `feed`, `onboarding`): the sandbox network blocks `*.supabase.co` runtime endpoints (`CONNECT … 403`). Hosted DB state and deployments below were verified through the Management API only.
+- Edge Functions on the Supabase Edge Runtime, real GoTrue email-confirmation flow (`site_url` is still localhost, so confirmation links would point at localhost; deliberately unchanged), PostgREST behaviour of the new embeds (`saves → content_items`).
 - Component rendering of every screen (no component/E2E tests exist; logic is tested, JSX is compiled and bundled but never rendered).
 
 ### MOCKED / SCAFFOLDED
@@ -94,6 +94,18 @@ Layout on small/large phones and notches, nested scrolling inside the paged feed
 - Hindi UI strings are unreviewed machine-authored copy; `name_i18n` exists in the schema but the seed has no Hindi names, so exam/subject chips show English until populated.
 - Batch ranking marks a whole batch as seen when it is fetched (pre-existing); learning-state changes therefore reach the _next_ batch (~3 cards later), not the already-fetched ones.
 - Email-confirmation projects show a "check your email" state; with `site_url=localhost` that link will not work from a phone.
+
+### Hosted integration — 2026-10-04 (project `qwgsabpiqexfhndojckv`, ap-northeast-2, ACTIVE_HEALTHY)
+
+**Verified on the hosted project (Management API; read-only catalog queries):**
+
+- Migration `20260102000005_mvp_language_and_level` **applied** (history now 18 rows, last `mvp_language_and_level`). Present: `learner_profiles.preparation_level` + its check, `profiles_locale_format` check, policies `profiles_app_server_select/update`, `follows_app_server_select`. Privilege check with `has_*_privilege`: `app_server` can select/update only `profiles.locale` (not `username`/`display_name`), can only _select_ `follows`; `anon` has nothing on `profiles`/`follows`; `authenticated` has no `TRUNCATE`. RLS still on for all 78 public tables.
+- Edge Functions **`feed` and `onboarding` redeployed (v2, ACTIVE, `verify_jwt` kept true)** from commit `d7dd9b3`'s tree; the downloaded bundles contain the new code (`preparationLevel`, `isSupportedLocale`, `follows`, `p.locale`, ability prior). `events`, `submit-answer`, `jobs` untouched (v1, hashes unchanged).
+- Public client config: URL + the project's **publishable** key (`sb_publishable_…`) in the git-ignored `apps/mobile/.env`. A plain-JS export shows the inlined config object holds exactly that URL and key; no secret-shaped string, no service-role JWT; `public-config.test.ts` now guards it (only the two `EXPO_PUBLIC_*` vars are read; no privileged names in app source; factory refuses secret keys).
+
+**Still NOT verified on hosted:** any live request (blocked from the sandbox), real GoTrue sign-up/sign-in, the deployed functions executing against the database, PostgREST embeds (`saves → content_items`). `site_url` (localhost) and email-confirmation settings were **not** changed.
+
+**Hosted data is empty:** 0 exams, 0 subjects, 0 published content items, 0 users (the dev seed was never applied). Until curriculum/content exist, onboarding shows no exam/subject choices and the feed shows the "all caught up" state. Needs a decision: apply the synthetic dev seed (`supabase/seed/seed.sql`, explicitly "never production") to this project, or load real content via the pipeline.
 
 ## Audit remediation — 2026-10-02 (CRITICAL + HIGH done; some MEDIUM done)
 
