@@ -21,7 +21,7 @@ if (probe.status !== 0) {
 }
 const root = join(import.meta.dirname, '..', 'supabase', 'functions');
 const cfg = join(root, 'deno.json');
-const fns = ['submit-answer', 'feed', 'events', 'onboarding', 'jobs'];
+const fns = ['submit-answer', 'feed', 'events', 'onboarding', 'create-content', 'jobs'];
 let failed = false;
 const fail = (m) => {
   console.error('FAIL', m);
@@ -47,6 +47,7 @@ const cases = [
   ['feed', 'GET', '', {}, 401],
   ['events', 'POST', '', {}, 401],
   ['onboarding', 'POST', '', {}, 401],
+  ['create-content', 'POST', '', {}, 401],
   ['jobs', 'POST', '', {}, 401], // no JOBS_SECRET configured → closed
   [
     'jobs',

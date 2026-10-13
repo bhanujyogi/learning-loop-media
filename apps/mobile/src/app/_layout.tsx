@@ -66,6 +66,8 @@ function Gate() {
       <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
       <Stack.Screen name="content/[id]" options={{ presentation: 'card' }} />
       <Stack.Screen name="saved" />
+      <Stack.Screen name="create/new" />
+      <Stack.Screen name="legal/[doc]" />
       <Stack.Screen name="user/[id]" />
     </Stack>
   );

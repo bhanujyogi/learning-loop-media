@@ -22,6 +22,7 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: t('tabs.home'), tabBarIcon: icon('🏠') }} />
+      <Tabs.Screen name="create" options={{ title: t('tabs.create'), tabBarIcon: icon('➕') }} />
       <Tabs.Screen name="learn" options={{ title: t('tabs.learn'), tabBarIcon: icon('📈') }} />
       <Tabs.Screen name="profile" options={{ title: t('tabs.profile'), tabBarIcon: icon('👤') }} />
     </Tabs>

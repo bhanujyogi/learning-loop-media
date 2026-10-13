@@ -54,7 +54,7 @@ export interface SubmitAnswerResult {
 
 export class DomainFailure extends Error {
   constructor(
-    readonly code: 'not_found' | 'invalid_input' | 'forbidden',
+    readonly code: 'not_found' | 'invalid_input' | 'forbidden' | 'rate_limited',
     message: string,
   ) {
     super(message);
@@ -142,7 +142,7 @@ export async function submitAnswer(db: Sql, input: SubmitAnswerInput): Promise<S
          join content_versions v on v.id = c.current_version_id
          join content_answer_keys k on k.content_version_id = v.id
         where c.id = $1 and c.type = 'question' and c.publishing = 'published' and c.deleted_at is null
-          and c.moderation in ('none','cleared','pending_review')
+          and c.moderation in ('none','cleared')
           and not (c.owner_user_id is not null and app.is_blocked_between($2, c.owner_user_id))`,
       [input.questionId, input.userId],
     );

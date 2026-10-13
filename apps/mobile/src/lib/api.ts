@@ -101,6 +101,8 @@ export const api = {
   }) => call<SubmitAnswerResponse>('submit-answer', { body: b }),
   events: (events: { name: string; payload?: Record<string, unknown>; at?: number }[]) =>
     call<{ accepted: number; dropped: number }>('events', { body: { events } }),
+  createContent: (b: unknown) =>
+    call<{ contentId: string; moderation: string }>('create-content', { body: b }),
   onboarding: (b: {
     examId?: string;
     examDate?: string;

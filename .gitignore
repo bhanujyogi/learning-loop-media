@@ -152,3 +152,6 @@ supabase/.temp/
 supabase/.branches/
 next-env.d.ts
 *.tsbuildinfo
+
+# generated legal pages (host these for the store listing)
+legal-site/

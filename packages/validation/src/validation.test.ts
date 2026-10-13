@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { parseCreatorSubmission } from './creator.ts';
 import {
   questionBody,
   noteBody,
@@ -199,5 +200,91 @@ describe('notes & interactive', () => {
         sourceType: 'imported',
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('creator submissions (what an ordinary creator may upload)', () => {
+  const concept = '50000000-0000-0000-0000-000000000004';
+  const ok = (x: unknown) => parseCreatorSubmission(x);
+  const note = {
+    kind: 'note',
+    title: 'Ohm law basics',
+    language: 'en',
+    conceptId: concept,
+    body: { blocks: [{ type: 'paragraph', text: 'V = IR' }] },
+  };
+  const q = {
+    kind: 'question',
+    title: 'Unit of resistance',
+    language: 'hi',
+    conceptId: concept,
+    body: {
+      type: 'single_choice',
+      prompt: 'SI unit?',
+      options: [
+        { id: 'a', text: 'Ohm' },
+        { id: 'b', text: 'Volt' },
+      ],
+    },
+    answer: { optionId: 'a' },
+    explanation: 'Ohm.',
+  };
+  it('accepts notes, flashcards and the four simple question types', () => {
+    expect(ok(note).ok).toBe(true);
+    expect(ok({ ...note, kind: 'flashcard', body: { front: 'f', back: 'b' } }).ok).toBe(true);
+    expect(ok(q).ok).toBe(true);
+    expect(
+      ok({ ...q, body: { type: 'true_false', prompt: 'x?' }, answer: { value: true } }).ok,
+    ).toBe(true);
+    expect(
+      ok({
+        ...q,
+        body: { type: 'fill_blank', prompt: 'Capital of RJ ____' },
+        answer: { accepted: ['Jaipur'] },
+      }).ok,
+    ).toBe(true);
+    expect(
+      ok({ ...q, body: { type: 'numerical', prompt: '2x5?' }, answer: { value: 10, tolerance: 0 } })
+        .ok,
+    ).toBe(true);
+  });
+  it('splits a question into a PUBLIC body (no key, no explanation) and a private key', () => {
+    const r = ok(q);
+    if (!r.ok) throw new Error('expected ok');
+    expect(JSON.stringify(r.value.body)).not.toMatch(/answer|explanation|Because|"optionId"/i);
+    expect(r.value.key).toEqual({ answer: { optionId: 'a' }, explanation: 'Ohm.' });
+  });
+  it('rejects what the app cannot safely render or grade', () => {
+    expect(ok({ ...note, language: 'fr' })).toMatchObject({
+      ok: false,
+      error: 'unsupported_language',
+    });
+    expect(ok({ ...note, conceptId: 'not-a-uuid' }).ok).toBe(false);
+    expect(ok({ ...note, title: 'ab' }).ok).toBe(false);
+    expect(
+      ok({ ...note, body: { blocks: [{ type: 'image', mediaId: 'x', alt: 'a' }] } }),
+    ).toMatchObject({ ok: false, error: 'block_not_allowed' });
+    expect(ok({ ...note, body: { blocks: [] } }).ok).toBe(false);
+    expect(ok({ ...q, answer: { optionId: 'zzz' } }).ok).toBe(false); // key must be one of the options
+    expect(ok({ ...q, explanation: '' }).ok).toBe(false); // an explanation is required: the loop teaches
+    expect(ok({ ...q, body: { type: 'matching', prompt: 'x' } })).toMatchObject({ ok: false });
+    expect(ok({ ...q, body: { ...q.body, mediaId: 'm1' } })).toMatchObject({
+      ok: false,
+      error: 'media_not_allowed',
+    });
+    expect(ok({ ...note, kind: 'video' }).ok).toBe(false);
+    expect(ok('nope').ok).toBe(false);
+  });
+  it('rejects control characters that databases cannot store', () => {
+    expect(ok({ ...note, title: 'bad\u0000title' })).toMatchObject({
+      ok: false,
+      error: 'invalid_characters',
+    });
+    expect(ok({ ...note, body: { blocks: [{ type: 'paragraph', text: 'a\u0001b' }] } }).ok).toBe(
+      false,
+    );
+    expect(
+      ok({ ...note, body: { blocks: [{ type: 'paragraph', text: 'ok\nline two' }] } }).ok,
+    ).toBe(true);
   });
 });

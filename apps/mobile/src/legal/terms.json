@@ -1,0 +1,72 @@
+{
+  "title": "Terms of use",
+  "updated": "2026-10-13",
+  "draft": true,
+  "sections": [
+    {
+      "h": "Agreement",
+      "p": [
+        "By creating an account or using Learning Loop you agree to these terms and to our Privacy policy and Community guidelines. If you do not agree, please do not use the app."
+      ]
+    },
+    {
+      "h": "Who can use it",
+      "p": [
+        "You must be 18 or older. You are responsible for keeping your password safe and for what happens under your account."
+      ]
+    },
+    {
+      "h": "What the app is — and is not",
+      "p": [
+        "Learning Loop offers practice questions, notes and flashcards to support your studying. It is not an official source for any exam body, and we make no claim that content matches any current syllabus or exam pattern.",
+        "Some content is written by other users. It may contain mistakes. Check important facts against official sources.",
+        "We cannot promise any exam result."
+      ]
+    },
+    {
+      "h": "Your posts",
+      "p": [
+        "You keep ownership of what you post. By posting you give us a non-exclusive, worldwide, royalty-free licence to store, display and distribute it inside Learning Loop and to make technical copies needed to run the service.",
+        "You promise that you wrote the post or have the right to share it, that it does not infringe anyone’s rights, and that it follows the Community guidelines. Do not post copyrighted material you do not have the right to share, including paid course content, test-series material or leaked exam papers.",
+        "You can delete your posts at any time."
+      ]
+    },
+    {
+      "h": "Moderation",
+      "p": [
+        "New posts are reviewed before other users can see them. We may decline, hide or remove posts, and restrict or close accounts, that break these terms or the Community guidelines or that put people at risk.",
+        "You can report posts and block users inside the app."
+      ]
+    },
+    {
+      "h": "Acceptable use",
+      "p": [
+        "Do not misuse the service: no attempts to break, overload or reverse-engineer it, no automated access, no creating accounts to avoid a restriction, and no harassment of other users."
+      ]
+    },
+    {
+      "h": "Ending your use",
+      "p": [
+        "You can stop using the app and delete your account at any time. We may suspend or close accounts that break these terms."
+      ]
+    },
+    {
+      "h": "Disclaimers and liability",
+      "p": [
+        "The app is provided “as is” and “as available”. To the extent the law allows, we are not liable for indirect or consequential loss, or for loss caused by relying on content in the app.",
+        "Nothing in these terms limits rights you have under law that cannot be limited."
+      ]
+    },
+    {
+      "h": "Changes and law",
+      "p": [
+        "We may update these terms; continued use after an update means you accept it. We will tell you about important changes in the app.",
+        "These terms are governed by the laws of {{JURISDICTION}}."
+      ]
+    },
+    {
+      "h": "Contact",
+      "p": ["Questions about these terms: {{CONTACT}}."]
+    }
+  ]
+}

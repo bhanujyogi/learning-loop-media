@@ -10,6 +10,7 @@ import { useReactions } from '../../lib/use-reactions';
 import { useTheme } from '../../theme/useTheme';
 import { EmptyState, ErrorState, Button, Text } from '../../ui/primitives';
 import { FeedCardSkeleton } from '../../ui/Skeleton';
+import { ReportSheet } from '../../ui/ReportSheet';
 import { Toast } from '../../ui/Toast';
 import { FeedCard } from './FeedCard';
 import { SessionStrip } from './SessionStrip';
@@ -25,6 +26,7 @@ export function FeedScreen() {
   const { notice, show } = useNotice();
   const [pageH, setPageH] = useState(0);
   const [active, setActive] = useState(0);
+  const [reporting, setReporting] = useState<string | null>(null);
   const list = useRef<FlatList<FeedItem>>(null);
   const enteredAt = useRef<{ id: string; at: number; rec: string } | null>(null);
 
@@ -179,6 +181,7 @@ export function FeedScreen() {
               preload={m === 'preload'}
               reactions={reactions}
               onNext={goNext}
+              onReport={setReporting}
             />
           );
         }}
@@ -192,6 +195,15 @@ export function FeedScreen() {
         {content}
         <Toast message={notice} />
       </View>
+      {reporting ? (
+        <ReportSheet
+          visible
+          kind="content"
+          targetId={reporting}
+          onClose={() => setReporting(null)}
+          onResult={show}
+        />
+      ) : null}
     </View>
   );
 }

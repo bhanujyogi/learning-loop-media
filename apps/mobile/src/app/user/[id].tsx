@@ -1,18 +1,20 @@
 import { levelFromXp } from '@learning-loop/learning-engine/gamification';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect } from 'react';
-import { View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useI18n } from '../../i18n/I18nProvider';
 import { track } from '../../lib/event-queue';
 import { supabase } from '../../lib/supabase';
 import { useNotice } from '../../lib/use-notice';
+import { useGoBack } from '../../ui/ScreenHeader';
 import { useReactions } from '../../lib/use-reactions';
 import { radius, space } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import {
   Card,
+  Button,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -20,6 +22,7 @@ import {
   ToggleButton,
 } from '../../ui/primitives';
 import { ScreenHeader } from '../../ui/ScreenHeader';
+import { ReportSheet } from '../../ui/ReportSheet';
 import { Toast } from '../../ui/Toast';
 
 /** Another learner's/creator's public profile: handle, bio, level, and a follow toggle (RLS decides what is visible). */
@@ -28,6 +31,9 @@ export default function UserProfile() {
   const { t } = useI18n();
   const { colors } = useTheme();
   const { notice, show } = useNotice();
+  const qc = useQueryClient();
+  const goBack = useGoBack();
+  const [reporting, setReporting] = useState(false);
   const reactions = useReactions([], id ? [id] : [], () => show(t('social.actionError')));
   const q = useQuery({
     queryKey: ['public-profile', id],
@@ -46,6 +52,26 @@ export default function UserProfile() {
   }, [id, q.data]);
 
   const self = reactions.uid === id;
+  const block = () =>
+    Alert.alert(t('block.action'), t('block.confirm', { handle: q.data?.username ?? '' }), [
+      { text: t('common.close'), style: 'cancel' },
+      {
+        text: t('block.action'),
+        style: 'destructive',
+        onPress: async () => {
+          if (!reactions.uid) return;
+          const { error } = await supabase
+            .from('user_blocks')
+            .insert({ blocker_id: reactions.uid, blocked_id: id });
+          if (error && error.code !== '23505') return show(t('block.error'));
+          // what this learner may see has changed: drop cached feed/saved data and leave the profile
+          void qc.invalidateQueries({ queryKey: ['saved'] });
+          void qc.invalidateQueries({ queryKey: ['handle'] });
+          show(t('block.done'));
+          goBack();
+        },
+      },
+    ]);
   let body: React.ReactNode;
   if (q.isLoading) body = <LoadingState />;
   else if (q.isError) body = <ErrorState onRetry={() => void q.refetch()} />;
@@ -85,15 +111,25 @@ export default function UserProfile() {
         {self ? (
           <Text muted>{t('social.cantFollowSelf')}</Text>
         ) : (
-          <View style={{ flexDirection: 'row' }}>
-            <ToggleButton
-              on={reactions.followed.has(id)}
-              glyphOn="✓"
-              glyphOff="＋"
-              labelOn={t('social.following')}
-              labelOff={t('social.follow')}
-              onPress={() => reactions.toggleFollow(id)}
-            />
+          <View style={{ gap: space.md }}>
+            <View style={{ flexDirection: 'row' }}>
+              <ToggleButton
+                on={reactions.followed.has(id)}
+                glyphOn="✓"
+                glyphOff="＋"
+                labelOn={t('social.following')}
+                labelOff={t('social.follow')}
+                onPress={() => reactions.toggleFollow(id)}
+              />
+            </View>
+            <View style={{ flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' }}>
+              <Button variant="secondary" label={t('block.action')} onPress={block} />
+              <Button
+                variant="ghost"
+                label={t('report.action')}
+                onPress={() => setReporting(true)}
+              />
+            </View>
           </View>
         )}
       </View>
@@ -104,6 +140,15 @@ export default function UserProfile() {
       <ScreenHeader />
       <View style={{ flex: 1 }}>
         {body}
+        {q.data && !self ? (
+          <ReportSheet
+            visible={reporting}
+            kind="user"
+            targetId={id}
+            onClose={() => setReporting(false)}
+            onResult={show}
+          />
+        ) : null}
         <Toast message={notice} />
       </View>
     </SafeAreaView>

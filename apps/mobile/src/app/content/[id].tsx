@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ContentBody } from '../../features/feed/ContentBody';
@@ -14,6 +14,7 @@ import { kindOf, space } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import {
   EmptyState,
+  Button,
   ErrorState,
   LoadingState,
   Pill,
@@ -21,6 +22,7 @@ import {
   ToggleButton,
 } from '../../ui/primitives';
 import { ScreenHeader, useGoBack } from '../../ui/ScreenHeader';
+import { ReportSheet } from '../../ui/ReportSheet';
 import { Toast } from '../../ui/Toast';
 
 /** Opens one published item full-screen (from a feed card or the Saved list). The body is read through RLS like any client read. */
@@ -30,6 +32,7 @@ export default function ContentScreen() {
   const { t } = useI18n();
   const { colors, kind: kindColors } = useTheme();
   const { notice, show } = useNotice();
+  const [reporting, setReporting] = useState(false);
   const recommendationId = rec ? rec : undefined;
 
   const q = useQuery({
@@ -87,6 +90,7 @@ export default function ContentScreen() {
             labelOff={t('social.like')}
             onPress={() => reactions.toggleLike(data.id, recommendationId)}
           />
+          <Button variant="ghost" label={t('report.action')} onPress={() => setReporting(true)} />
           <ToggleButton
             on={reactions.saved.has(data.id)}
             glyphOn="★"
@@ -104,6 +108,15 @@ export default function ContentScreen() {
       <ScreenHeader />
       <View style={{ flex: 1 }}>
         {body}
+        {data ? (
+          <ReportSheet
+            visible={reporting}
+            kind="content"
+            targetId={data.id}
+            onClose={() => setReporting(false)}
+            onResult={show}
+          />
+        ) : null}
         <Toast message={notice} />
       </View>
     </SafeAreaView>

@@ -84,7 +84,7 @@ const BASE = `
     join content_versions v on v.id = c.current_version_id
     left join content_stats st on st.content_id = c.id
    where c.publishing = 'published' and c.deleted_at is null and c.type::text in ${FEEDABLE}
-     and c.moderation in ('none','cleared','pending_review') and c.freshness in ('current','needs_review')
+     and c.moderation in ('none','cleared') and c.freshness in ('current','needs_review')
      and not (c.owner_user_id is not null and app.is_blocked_between($1, c.owner_user_id))
      -- language preference (profiles.locale) is an ELIGIBILITY rule, not a score change: the learner's language plus English
      -- as the universal fallback, so a Hindi learner is never shown an empty feed while Hindi inventory is still small.
@@ -386,7 +386,7 @@ async function getFeedInTx(sql: Sql, req: FeedRequest): Promise<FeedResponse> {
     sources: [...sources],
     role: roleOf(r, sources.has('review_due')),
     published: true,
-    moderationOk: ['none', 'cleared', 'pending_review'].includes(r.moderation),
+    moderationOk: ['none', 'cleared'].includes(r.moderation),
     freshness: r.freshness,
   }));
 

@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabase';
 import { kindOf, radius, space } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { LOCALE_NAMES } from '../../ui/LanguageSwitch';
-import { Pill, Text, ToggleButton } from '../../ui/primitives';
+import { Button, Pill, Text, ToggleButton } from '../../ui/primitives';
 import { difficultyBand, difficultyKey, kindLabelKey, positionLabel } from './card-model';
 import { ContentBody } from './ContentBody';
 
@@ -42,6 +42,7 @@ export function FeedCard({
   preload,
   reactions,
   onNext,
+  onReport,
 }: {
   item: FeedItem;
   index: number;
@@ -51,6 +52,7 @@ export function FeedCard({
   preload: boolean;
   reactions: Reactions;
   onNext: () => void;
+  onReport: (contentId: string) => void;
 }) {
   const { colors, kind: kindColors } = useTheme();
   const { t, locale } = useI18n();
@@ -169,6 +171,11 @@ export function FeedCard({
               labelOn={t('social.saved')}
               labelOff={t('social.save')}
               onPress={() => reactions.toggleSave(item.contentId, item.recommendationId)}
+            />
+            <Button
+              variant="ghost"
+              label={t('report.action')}
+              onPress={() => onReport(item.contentId)}
             />
             {canFollow ? (
               <ToggleButton

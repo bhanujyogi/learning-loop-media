@@ -21,13 +21,13 @@ export async function requireUser(req: Request): Promise<string> {
 }
 
 // ---- Database access: LEAST PRIVILEGE (audit H6) ----------------------------------------------------------------
-// Every transaction runs `SET LOCAL ROLE app_server` (or `app_jobs`): a non-superuser role WITHOUT BYPASSRLS whose grants
+// Every transaction runs `SET LOCAL ROLE app_server` (or `app_jobs`; `authenticated` ONLY for creator uploads, which must run under RLS as the caller): a non-superuser role WITHOUT BYPASSRLS whose grants
 // are listed in supabase/migrations/20260102000002_service_roles.sql. Even if the connection string is the platform's
 // privileged `postgres` user, application code never executes with those privileges.
 // Preferred hardening: create a dedicated LOGIN role that is only a member of app_server/app_jobs (password set out-of-band,
 // never in a migration) and provide its URL as APP_DB_URL; SUPABASE_DB_URL remains the fallback.
 let pg: ReturnType<typeof postgres> | null = null;
-type Role = 'app_server' | 'app_jobs';
+type Role = 'app_server' | 'app_jobs' | 'authenticated';
 const wrap = (
   db: postgres.Sql | postgres.TransactionSql,
   role: Role,
@@ -67,6 +67,7 @@ export function errorResponse(e: unknown): Response {
   if (code === 'not_found') return json(404, { error: 'not_found' });
   if (code === 'invalid_input') return json(400, { error: 'invalid_input' });
   if (code === 'forbidden') return json(403, { error: 'forbidden' });
+  if (code === 'rate_limited') return json(429, { error: 'rate_limited' });
   log.error('edge function error', { error: (e as Error)?.message });
   return json(500, { error: 'internal' });
 }

@@ -1,0 +1,48 @@
+{
+  "title": "Community guidelines",
+  "updated": "2026-10-13",
+  "draft": true,
+  "sections": [
+    {
+      "h": "The short version",
+      "p": ["Share things that help people learn. Be accurate, be original, be kind."]
+    },
+    {
+      "h": "Be original and respect rights",
+      "p": [
+        "Post only what you wrote yourself or have the right to share.",
+        "Do not post paid course notes, test-series questions, textbook pages, or leaked or ‘memory-based’ exam papers that you do not have permission to share.",
+        "If you use an idea from a source, explain it in your own words."
+      ]
+    },
+    {
+      "h": "Be accurate",
+      "p": [
+        "Check your facts and answers. Every question needs a correct answer and a helpful explanation.",
+        "Do not present guesses about syllabus or exam patterns as official facts."
+      ]
+    },
+    {
+      "h": "Be respectful and safe",
+      "p": [
+        "No harassment, bullying, hate or threats.",
+        "No sexual, graphic, violent or self-harm content.",
+        "Do not share other people’s personal information.",
+        "No spam, advertising or links to sell things."
+      ]
+    },
+    {
+      "h": "What happens when rules are broken",
+      "p": [
+        "Posts are reviewed before others see them. Reported posts are checked by moderators.",
+        "We may remove content, restrict posting, or close accounts. Serious or repeated breaks can lead to a permanent ban."
+      ]
+    },
+    {
+      "h": "Reporting and blocking",
+      "p": [
+        "Use Report on any post that worries you, and Block on a user’s profile to stop seeing their posts. Reports are reviewed by people."
+      ]
+    }
+  ]
+}

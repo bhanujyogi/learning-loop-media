@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-_Last updated: 2026-10-04 (core learning loop + social basics milestone, on top of the consumer MVP and hosted-integration milestones). Read this first; then `CLAUDE.md`; then `docs/ROADMAP.md`._
+_Last updated: 2026-10-13 (launch-readiness: creator upload, pre-moderation, report/block/delete-account, legal pages, build config — see `docs/LAUNCH.md`). Read this first; then `CLAUDE.md`; then `docs/ROADMAP.md`._
 
 ## Summary
 
@@ -13,7 +13,7 @@ It is a foundation for a product, **not a finished product**: see "Not verified"
 | Check                                               | Result                                                                                                                                                                                                                                                                 |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm typecheck` / `pnpm lint` / `prettier --check` | clean                                                                                                                                                                                                                                                                  |
-| `pnpm test`                                         | **319 tests pass** across 10 workspaces (149 database, 70 mobile logic)                                                                                                                                                                                                |
+| `pnpm test`                                         | **350 tests pass** across 10 workspaces (163 database, 83 mobile logic)                                                                                                                                                                                                |
 | Migrations                                          | all 16 apply on PGlite **and on a real PostgreSQL 16 cluster** (concurrency suite); RLS enabled on every public table; `anon` has no privileges                                                                                                                        |
 | Security / regression suites                        | 41 original security tests + `remediation` (C1, C2, H1, H2, H3, medium) + `integrity` (H4, H5, H6) + `recommendation-logging` (H9). Each audit attack has a regression test; those that exercise changed code were run against the old implementation and failed there |
 | **Concurrency (H8)**                                | real multi-connection PostgreSQL 16: 12 concurrent event batches and feed/answer/event races lose no updates; **fails 3/3 without `FOR UPDATE`**; stable over 5 consecutive runs with it                                                                               |
@@ -94,6 +94,29 @@ Layout on small/large phones and notches, nested scrolling inside the paged feed
 - Hindi UI strings are unreviewed machine-authored copy; `name_i18n` exists in the schema but the seed has no Hindi names, so exam/subject chips show English until populated.
 - Batch ranking marks a whole batch as seen when it is fetched (pre-existing); learning-state changes therefore reach the _next_ batch (~3 cards later), not the already-fetched ones.
 - Email-confirmation projects show a "check your email" state; with `site_url=localhost` that link will not work from a phone.
+
+## Launch readiness — 2026-10-13 (target: public launch 19 Oct)
+
+Owner decisions: Android app file for testers → public launch; creator upload for the owner and other users; email confirmation off for now. Full gate table and the owner's to-do list: **`docs/LAUNCH.md`**.
+
+### Built this week (all TEST-VERIFIED ONLY — not deployed, never run on a phone)
+
+- **Creator upload** (`create-content` Edge Function + `createContent` service + validation `parseCreatorSubmission` + Create tab/composer/My posts): notes, flashcards and four question types, English/Hindi. Runs as the `authenticated` role so RLS, guard triggers, restrictions and the upload rate limit apply as for any client write; one transaction; answer key never in the public body. Tests: 7 service + 4 validation + 8 form (incl. drift test against the server validator).
+- **Pre-moderation** (migration `20260102000006`): other learners see user content only once `cleared` (moderator approval, or a trusted/verified creator). Changed the previous post-moderation default; three read paths tightened (visibility function, feed, grading). Existing tests that assumed instant visibility were updated deliberately (documented in `docs/DECISIONS.md`); reports now **escalate** approved content to moderators instead of auto-hiding it (H3 behaviour, now the only path).
+- **Safety gates for stores**: Report (content/user) and Block (UI over existing RLS tables), `delete_my_account()` (soft-deletes posts, removes personal/learning data, refuses staff accounts; migration + 3 tests), in-app Privacy/Terms/Guidelines (draft text) + web pages builder, 18+ notice on sign-up.
+- **Release engineering**: real app icon set (generated placeholder brand mark), splash, `eas.json` (APK `preview`, AAB `production`; public URL + publishable key only), unused `expo-notifications`/`expo-image` removed, Android permissions reduced to INTERNET + VIBRATE (verified with a native prebuild), `scripts/check-release.mjs` gate, `pnpm legal:build`.
+
+### Checks run (2026-10-13)
+
+`pnpm check` (typecheck + lint + 350 tests), Prettier, admin build, 14/14 Deno checks (incl. `create-content`), Android Metro bundle, native `expo prebuild`.
+
+### NOT done / blockers
+
+- **Hosted project is unchanged**: migration 000006 is NOT applied and `create-content` is NOT deployed, because my project-scoped Supabase token now returns "Invalid access token". Until applied, hosted behaviour is still post-moderation and creators cannot upload. The `feed`/`submit-answer` functions also need redeploying after the migration.
+- **Owner inputs missing**: operator name, support/contact email and governing law for the legal text (release gate fails until set); Expo account for the build; decision on where to host the admin app and legal pages.
+- **Admin app is not deployed**, so moderators currently have no UI (SQL fallback in `docs/LAUNCH.md`).
+- **Play Store**: a public Play listing by 19 Oct is unlikely (new-account closed-testing requirement, review time). Realistic: APK + web pages first.
+- Still unverified on real devices: the whole creator flow, report/block sheets, account deletion, legal screens, new Create tab.
 
 ## Core learning loop + social basics — 2026-10-04
 

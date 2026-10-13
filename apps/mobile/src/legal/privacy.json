@@ -1,0 +1,88 @@
+{
+  "title": "Privacy policy",
+  "updated": "2026-10-13",
+  "draft": true,
+  "sections": [
+    {
+      "h": "Who we are",
+      "p": [
+        "Learning Loop (“we”, “us”) is a mobile app that helps people prepare for competitive exams with short practice questions, notes and flashcards. The app is operated by {{OPERATOR}}. You can contact us at {{CONTACT}}."
+      ]
+    },
+    {
+      "h": "Who can use the app",
+      "p": [
+        "Learning Loop is intended for people aged 18 or older. If you are under 18, please do not create an account."
+      ]
+    },
+    {
+      "h": "What we collect",
+      "p": [
+        "Account: your email address and a password (the password is stored in hashed form by our authentication provider; we cannot read it). We create a random username for you.",
+        "Your choices: language, exam goal, exam date (optional), preparation level and subjects you are interested in.",
+        "Learning activity: your answers and whether they were correct, how long you took, hints used, our estimate of how well you know each concept, your review schedule, XP, level, streak and achievements.",
+        "Usage signals: which items were shown to you, opened, skipped, liked, saved or followed. We use these to choose what to show you next.",
+        "Content you post: notes, flashcards and questions you submit, with their text and the language you chose.",
+        "Safety information: reports you send, users you block, and moderation decisions about your posts.",
+        "Technical data: your sign-in session is kept in your device’s secure storage. Our hosting provider may log technical information such as IP address and device type when the app connects."
+      ]
+    },
+    {
+      "h": "What we do not do",
+      "p": [
+        "We do not show advertising and we do not sell your data.",
+        "We do not use third-party advertising or analytics SDKs in the app.",
+        "We do not access your contacts, location, camera, microphone or photos.",
+        "We do not send your learning data to any cloud AI service."
+      ]
+    },
+    {
+      "h": "How we use your information",
+      "p": [
+        "To run the app: sign you in, grade your answers, track your progress and schedule reviews.",
+        "To personalise: choose questions and notes that fit your level, goals and language.",
+        "To keep the community safe: review reports, remove harmful content and enforce our rules.",
+        "To protect the service: prevent abuse and fix problems."
+      ]
+    },
+    {
+      "h": "What other people can see",
+      "p": [
+        "Other users can see your username, your level, XP and achievements, and your posts once they have been approved. Your answers, mastery estimates, review schedule and exam details are private to you.",
+        "Posts you submit are reviewed by moderators before other users can see them."
+      ]
+    },
+    {
+      "h": "Who processes your data",
+      "p": [
+        "We use Supabase to provide our database, sign-in and server functions. Our project is hosted in the Asia-Pacific (Seoul) region. Supabase processes data on our behalf under its own terms and privacy policy.",
+        "We may disclose information if the law requires it or to protect people from harm."
+      ]
+    },
+    {
+      "h": "Keeping and deleting your data",
+      "p": [
+        "You can delete your account at any time in the app: Profile → Delete my account. This permanently removes your account, learning progress, saves, follows and preferences, and takes your posts out of the app.",
+        "We may keep limited records without your profile details where needed for safety, security or legal reasons (for example a record that a moderation action took place)."
+      ]
+    },
+    {
+      "h": "Your rights",
+      "p": [
+        "You can ask us to access, correct or delete your information, or to explain how it is used, by contacting {{CONTACT}}. Deleting your account in the app is the fastest way to remove your data."
+      ]
+    },
+    {
+      "h": "Security",
+      "p": [
+        "Data is encrypted in transit. Access to data in our database is restricted by row-level security rules so that you can only read your own private data. No system is perfectly secure, so please use a strong, unique password."
+      ]
+    },
+    {
+      "h": "Changes",
+      "p": [
+        "If we change this policy we will update the date above and, for important changes, tell you in the app."
+      ]
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -25,6 +26,7 @@ import { Button, Field, Text } from '../ui/primitives';
 export default function SignIn() {
   const { colors } = useTheme();
   const { t } = useI18n();
+  const router = useRouter();
   const [mode, setMode] = useState<'in' | 'up'>('in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -195,6 +197,25 @@ export default function SignIn() {
                 onPress={() => void submit()}
                 loading={busy}
               />
+              <Text variant="caption" muted style={{ textAlign: 'center' }}>
+                {t('auth.legalNotice')}
+              </Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Button
+                  variant="ghost"
+                  label={t('legal.terms')}
+                  onPress={() =>
+                    router.push({ pathname: '/legal/[doc]', params: { doc: 'terms' } })
+                  }
+                />
+                <Button
+                  variant="ghost"
+                  label={t('legal.privacy')}
+                  onPress={() =>
+                    router.push({ pathname: '/legal/[doc]', params: { doc: 'privacy' } })
+                  }
+                />
+              </View>
               <Button
                 variant="ghost"
                 label={mode === 'in' ? t('auth.toSignUp') : t('auth.toSignIn')}

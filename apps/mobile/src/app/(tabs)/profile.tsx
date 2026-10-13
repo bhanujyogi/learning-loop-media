@@ -4,11 +4,14 @@ import { levelFromXp } from '@learning-loop/learning-engine/gamification';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Alert, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useI18n } from '../../i18n/I18nProvider';
 import { useAccount } from '../../lib/account';
 import { useAuth } from '../../lib/auth';
+import { answerCache } from '../../lib/answer-cache';
+import { deleteOutcome } from '../../lib/safety';
+import { sessionStats } from '../../lib/session-stats';
 import { supabase } from '../../lib/supabase';
 import { radius, space } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
@@ -39,6 +42,8 @@ export default function Profile() {
   const uid = session?.user.id;
   const [langError, setLangError] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const stats = useQuery({
     queryKey: ['profile-stats', uid],
     enabled: !!uid,
@@ -68,6 +73,28 @@ export default function Profile() {
       setSigningOut(false);
     }
   };
+  const confirmDelete = () =>
+    Alert.alert(t('account.delete'), t('account.deleteWarn'), [
+      { text: t('common.close'), style: 'cancel' },
+      {
+        text: t('account.deleteConfirm'),
+        style: 'destructive',
+        onPress: async () => {
+          setDeleting(true);
+          setDeleteError(null);
+          const { error } = await supabase.rpc('delete_my_account');
+          const o = deleteOutcome(error);
+          if (o === 'deleted') {
+            answerCache.clear();
+            sessionStats.reset();
+            await supabase.auth.signOut({ scope: 'local' }); // the user no longer exists server-side; clear the device session
+          } else {
+            setDeleteError(o === 'staff' ? t('account.deleteStaff') : t('account.deleteError'));
+          }
+          setDeleting(false);
+        },
+      },
+    ]);
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg }}>
@@ -143,12 +170,35 @@ export default function Profile() {
           </Text>
         </Card>
 
+        <Card style={{ gap: space.xs }}>
+          <Text variant="heading">{t('legal.section')}</Text>
+          {(['privacy', 'terms', 'guidelines'] as const).map((d) => (
+            <Button
+              key={d}
+              variant="ghost"
+              label={t(`legal.${d}`)}
+              onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: d } })}
+            />
+          ))}
+        </Card>
+
         <Button
           variant="secondary"
           label={signingOut ? t('profile.signingOut') : t('profile.signOut')}
           loading={signingOut}
           onPress={() => void signOut()}
         />
+        <Button
+          variant="ghost"
+          label={deleting ? t('account.deleting') : t('account.delete')}
+          loading={deleting}
+          onPress={confirmDelete}
+        />
+        {deleteError ? (
+          <Text accessibilityRole="alert" style={{ color: colors.danger }}>
+            {deleteError}
+          </Text>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

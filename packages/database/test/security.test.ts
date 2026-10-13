@@ -32,6 +32,10 @@ const draft = (
     )
     .then((r) => r[0]!.id);
 
+/** Launch policy is pre-moderation: other learners see user content only after approval. Fixtures that need that call this. */
+const approve = (id: string) =>
+  mod.q(`select apply_moderation_action('content', $1, 'approve', 'test fixture')`, [id]);
+
 beforeAll(async () => {
   db = await freshDb();
   const ids = await Promise.all(
@@ -141,8 +145,10 @@ describe('user content', () => {
     await draft(alice, id);
     await alice.fails(`update content_items set publishing = 'published' where id = $1`, [id]);
     await alice.q(`select publish_content($1)`, [id]);
+    // launch policy (pre-moderation): the owner sees the pending item, other learners do not until it is approved
+    expect(await bob.q(`select 1 from content_items where id = $1`, [id])).toHaveLength(0);
     const row = (
-      await bob.q<{ moderation: string; verification: string }>(
+      await alice.q<{ moderation: string; verification: string }>(
         `select moderation, verification from content_items where id = $1`,
         [id],
       )
@@ -232,6 +238,7 @@ describe('user content', () => {
       [vid],
     );
     await alice.q(`select publish_content($1)`, [q[0]!.id]);
+    await approve(q[0]!.id);
     expect((await bob.q(`select * from content_answer_keys`)).length).toBe(0);
     expect((await alice.q(`select * from content_answer_keys`)).length).toBe(1);
     // key of a published version is frozen
@@ -367,10 +374,11 @@ describe('official publishing', () => {
 });
 
 describe('moderation', () => {
-  it('3 distinct reports auto-flag (hide) content; duplicate reports from one user are rejected', async () => {
+  it('3 distinct reports on approved content escalate it to moderators; duplicate reports from one user are rejected', async () => {
     const id = await note(alice, 'Reportable');
     await draft(alice, id);
     await alice.q(`select publish_content($1)`, [id]);
+    await approve(id);
     // reporters count at full weight only once their account is >7 days old (H3)
     await db.query(
       `update profiles set created_at = now() - interval '30 days' where id in ($1,$2,$3)`,
@@ -393,8 +401,14 @@ describe('moderation', () => {
       `insert into reports(reporter_id,target_kind,target_id,reason) values (auth.uid(),'content',$1,'harassment')`,
       [id],
     );
-    expect((await bob.q(`select id from content_items where id = $1`, [id])).length).toBe(0);
+    // approved content is never auto-hidden by reports (H3): it stays visible and the case is ESCALATED to a moderator
+    expect((await bob.q(`select id from content_items where id = $1`, [id])).length).toBe(1);
     expect((await alice.q(`select id from content_items where id = $1`, [id])).length).toBe(1);
+    const c = await db.query<{ escalated: boolean }>(
+      `select escalated from moderation_cases where target_kind = 'content' and target_id = $1`,
+      [id],
+    );
+    expect(c.rows[0]!.escalated).toBe(true);
   });
   it('reporters cannot impersonate other reporters', async () => {
     const id = await note(alice, 'X');
@@ -407,6 +421,7 @@ describe('moderation', () => {
     const id = await note(alice, 'Bad content');
     await draft(alice, id);
     await alice.q(`select publish_content($1)`, [id]);
+    await approve(id);
     await bob.fails(`select apply_moderation_action('content', $1, 'remove', 'because')`, [id]);
     await alice.fails(`select apply_moderation_action('content', $1, 'approve', 'self approve')`, [
       id,
@@ -448,6 +463,7 @@ describe('blocking & social', () => {
     const id = await note(carol, 'Carol public');
     await draft(carol, id);
     await carol.q(`select publish_content($1)`, [id]);
+    await approve(id);
     expect((await dave.q(`select id from content_items where id = $1`, [id])).length).toBe(1);
     await carol.q(
       `insert into user_blocks(blocker_id, blocked_id) values (auth.uid(), '${dave.id}')`,
@@ -462,6 +478,7 @@ describe('blocking & social', () => {
     const id = await note(alice, 'Likeable');
     await draft(alice, id);
     await alice.q(`select publish_content($1)`, [id]);
+    await approve(id);
     await bob.q(`insert into likes(user_id, content_id) values (auth.uid(), $1)`, [id]);
     await bob.fails(`insert into likes(user_id, content_id) values ('${carol.id}', $1)`, [id]);
     expect(
@@ -491,6 +508,7 @@ describe('blocking & social', () => {
     );
     await draft(alice, id);
     await alice.q(`select publish_content($1)`, [id]);
+    await approve(id);
     await bob.fails(
       `insert into comments(content_id, user_id, body) values ($1, '${carol.id}', 'impersonate')`,
       [id],

@@ -102,7 +102,7 @@ export const grantRole = (db: PGlite, user: string, role: string) =>
  * Sql port over PGlite for the SERVER-SIDE services. `role` mirrors production: services run as a least-privileged
  * database role (not superuser, no BYPASSRLS), so tests exercise the real grants/policies (audit H6).
  */
-export function serviceSql(db: PGlite, role?: 'app_server' | 'app_jobs'): Sql {
+export function serviceSql(db: PGlite, role?: 'app_server' | 'app_jobs' | 'authenticated'): Sql {
   type Tx = { query: (t: string, p?: never[]) => Promise<{ rows: unknown[] }> };
   const wrap = (tx: Tx, inTransaction: boolean): Sql => ({
     inTransaction,

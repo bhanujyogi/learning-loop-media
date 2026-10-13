@@ -14,8 +14,6 @@
     "expo-sqlite": "~57.0.3",
     "expo-haptics": "~57.0.3",
     "expo-video": "~57.0.5",
-    "expo-image": "~57.0.5",
-    "expo-notifications": "~57.0.21",
     "react-native-screens": "~4.26.0",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-gesture-handler": "~2.32.0",
@@ -33,7 +31,8 @@
     "@learning-loop/validation": "workspace:*",
     "@learning-loop/ai": "workspace:*",
     "@learning-loop/database": "workspace:*",
-    "@learning-loop/learning-engine": "workspace:*"
+    "@learning-loop/learning-engine": "workspace:*",
+    "expo-system-ui": "~57.0.4"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
