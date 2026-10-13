@@ -112,10 +112,11 @@ Owner decisions: Android app file for testers → public launch; creator upload 
 
 ### NOT done / blockers
 
-- **Hosted project is unchanged**: migration 000006 is NOT applied and `create-content` is NOT deployed, because my project-scoped Supabase token now returns "Invalid access token". Until applied, hosted behaviour is still post-moderation and creators cannot upload. The `feed`/`submit-answer` functions also need redeploying after the migration.
+- **Hosted project is unchanged**: migration 000006 is NOT applied and `create-content` is NOT deployed. The sandbox's injected Supabase token and the personal token the owner pasted both return "Invalid access token" (cause undetermined: expired/revoked, or the sandbox credential takes precedence). **The pasted token is in the chat history: revoke it in the Supabase dashboard.** Until applied, hosted behaviour is still post-moderation and creators cannot upload. The `feed`/`submit-answer` functions also need redeploying after the migration.
 - **Owner inputs missing**: operator name, support/contact email and governing law for the legal text (release gate fails until set); Expo account for the build; decision on where to host the admin app and legal pages.
 - **Admin app is not deployed**, so moderators currently have no UI (SQL fallback in `docs/LAUNCH.md`).
-- **Play Store**: a public Play listing by 19 Oct is unlikely (new-account closed-testing requirement, review time). Realistic: APK + web pages first.
+- **Distribution**: owner decided on a direct APK link (no Play Store). The sandbox cannot reach Expo (api.expo.dev blocked) or build Android (no SDK), so the owner builds with EAS; the link is theirs to generate.
+- **Content**: Indian History pilot (28 EN/HI single-choice questions + 1 unit) converted by `scripts/history-pack.mjs`; all 30 items validate against the server schema. Not loaded and not committed — blocked on the owner's rights/accuracy/Hindi decisions (`docs/LAUNCH.md`). The PDF booklet and MP4 reels are not importable (exam-importance claims; no media upload path).
 - Still unverified on real devices: the whole creator flow, report/block sheets, account deletion, legal screens, new Create tab.
 
 ## Core learning loop + social basics — 2026-10-04
