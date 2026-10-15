@@ -1,13 +1,19 @@
 #!/usr/bin/env node
 // Builds static web pages (Privacy policy, Terms, Community guidelines) from the same JSON the app shows.
 // Google Play requires a public privacy-policy URL: host the output folder anywhere (Netlify drop, GitHub Pages, …).
-// Usage: node scripts/build-legal-site.mjs [--draft]   → ./legal-site/*.html   (--draft allows unfilled operator details)
+// Usage: node scripts/build-legal-site.mjs [--draft] [--apk-url <https://…>]   → ./legal-site/*.html   (--draft allows unfilled operator details)
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = join(import.meta.dirname, '..');
 const dir = join(root, 'apps/mobile/src/legal');
 const op = JSON.parse(readFileSync(join(dir, 'operator.json'), 'utf8'));
+const apkIdx = process.argv.indexOf('--apk-url');
+const apkUrl = apkIdx > 0 ? process.argv[apkIdx + 1] : '';
+if (apkUrl && !/^https:\/\/[^\s"'<>]+$/.test(apkUrl)) {
+  console.error('--apk-url must be an https:// link');
+  process.exit(1);
+}
 const incomplete = Object.values(op).some((v) => !v || /\{\{.*\}\}/.test(v));
 if (incomplete && !process.argv.includes('--draft')) {
   console.error(
@@ -40,7 +46,11 @@ writeFileSync(
   join(root, 'legal-site', 'index.html'),
   page(
     'Learning Loop',
-    `<h1>Learning Loop</h1><p>Practice questions, notes and flashcards for competitive exams.</p><ul><li><a href="privacy.html">Privacy policy</a></li><li><a href="terms.html">Terms of use</a></li><li><a href="guidelines.html">Community guidelines</a></li></ul>`,
+    `<h1>Learning Loop</h1><p>Practice questions, notes and flashcards for competitive exams, in English and Hindi.</p>${
+      apkUrl
+        ? `<p><a href="${esc(apkUrl)}" style="display:inline-block;padding:14px 22px;border-radius:999px;background:#4f46e5;color:#fff;text-decoration:none;font-weight:700">Download for Android</a></p><p><small>Android only. Your phone will ask permission to install apps from your browser ("unknown apps") because this app is not on the Play Store. For ages 18 and over.</small></p>`
+        : ''
+    }<ul><li><a href="privacy.html">Privacy policy</a></li><li><a href="terms.html">Terms of use</a></li><li><a href="guidelines.html">Community guidelines</a></li></ul>`,
   ),
 );
 console.log(

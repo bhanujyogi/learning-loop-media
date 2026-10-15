@@ -17,7 +17,8 @@
     "release:check": "node scripts/check-release.mjs",
     "legal:build": "node scripts/build-legal-site.mjs",
     "content:history": "node scripts/history-pack.mjs",
-    "content:import": "node scripts/import-content-pack.mjs"
+    "content:import": "node scripts/import-content-pack.mjs",
+    "hosted:setup": "node scripts/hosted-setup.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

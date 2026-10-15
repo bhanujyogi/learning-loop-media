@@ -33,21 +33,34 @@ Status of each launch gate. "Built" = code + tests exist here; "Needs owner" = a
 
 Before building run `pnpm release:check` in the repo root — it refuses to pass while legal details are placeholders, a secret is committed, or the build profile holds anything but the public Supabase URL and publishable key.
 
-## Supabase steps (hosted project `qwgsabpiqexfhndojckv`)
+## Supabase steps (hosted project `qwgsabpiqexfhndojckv`) — one command
 
-If you give me a fresh project-scoped access token I do these myself; otherwise, in the dashboard:
+The sandbox cannot reach your project with any token it was given, so this runs on your Mac:
 
-1. **SQL editor → paste and run** `supabase/migrations/20260102000006_ugc_launch_safety.sql` (pre-moderation + account deletion).
-2. **Edge functions**: deploy `create-content` (`supabase functions deploy create-content` with the CLI), and redeploy `feed` and `submit-answer` (they now require approved content).
-3. **Authentication → Providers → Email → turn off "Confirm email"** (agreed for the test launch).
-4. **Make yourself an admin and trusted creator** (SQL editor; replace the email):
-   ```sql
-   insert into user_roles(user_id, role) select id, 'admin' from auth.users where email = 'YOU@example.com' on conflict do nothing;
-   insert into user_roles(user_id, role) select id, 'moderator' from auth.users where email = 'YOU@example.com' on conflict do nothing;
-   insert into creator_profiles(user_id, trust_level) select id, 'trusted' from auth.users where email = 'YOU@example.com'
-     on conflict (user_id) do update set trust_level = 'trusted';
+1. Supabase dashboard → your account (top right) → **Access tokens** → **Generate new token** → copy it (starts `sbp_`). Revoke any token you pasted in chat earlier.
+2. In Terminal, in the repo folder:
    ```
-   A trusted creator's posts go live immediately; everyone else's wait for approval.
+   SUPABASE_ACCESS_TOKEN=sbp_PASTE_HERE node scripts/hosted-setup.mjs --email bhanuyogi215@gmail.com
+   ```
+   (try `--dry-run` first to see the plan without changing anything). It is locked to this project only and does, in order: applies the pending migration (`ugc_launch_safety`), deploys the five Edge Functions (`onboarding`, `feed`, `events`, `submit-answer`, `create-content`), turns **off** email confirmation (it does not touch `site_url`), makes your email an admin, moderator and trusted creator, then prints a verification summary. If it says no account was found, sign up in the app with that email and run it again.
+3. Afterwards revoke the token.
+
+<details><summary>Doing it by hand instead</summary>
+
+Run `supabase/migrations/20260102000006_ugc_launch_safety.sql` in the SQL editor; deploy the functions with the Supabase CLI; Authentication → Providers → Email → turn off "Confirm email"; and run:
+
+```sql
+insert into user_roles(user_id, role) select id, 'admin' from auth.users where email = 'YOU@example.com' on conflict do nothing;
+insert into user_roles(user_id, role) select id, 'moderator' from auth.users where email = 'YOU@example.com' on conflict do nothing;
+insert into creator_profiles(user_id, trust_level) select id, 'trusted' from auth.users where email = 'YOU@example.com'
+  on conflict (user_id) do update set trust_level = 'trusted';
+```
+
+</details>
+
+## Your download page
+
+After you have the APK link: `node scripts/build-legal-site.mjs --apk-url https://THE-APK-LINK` creates `legal-site/` with a home page (Download for Android button, install note) plus the Privacy policy, Terms and Community guidelines. Host that folder for free by dragging it onto https://app.netlify.com/drop — the address you get is the page to share with users.
 
 ## Moderating
 
