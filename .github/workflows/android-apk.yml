@@ -60,6 +60,11 @@ jobs:
       - name: Prebuild native project
         working-directory: apps/mobile
         run: npx expo prebuild --platform android --no-install
+      - name: Give Gradle enough memory (the larger app ran out of heap while dexing)
+        working-directory: apps/mobile/android
+        run: |
+          sed -i '/^org.gradle.jvmargs=/d;/^kotlin.daemon.jvmargs=/d' gradle.properties
+          printf '\norg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\nkotlin.daemon.jvmargs=-Xmx3g\n' >> gradle.properties
       - name: Wire release signing (Gradle init script)
         env:
           OWN: ${{ steps.key.outputs.own }}
@@ -83,7 +88,7 @@ jobs:
           EOF
       - name: Build release APK
         working-directory: apps/mobile/android
-        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
       - name: Verify signature and name the file
         run: |
           APK=$(ls apps/mobile/android/app/build/outputs/apk/release/*.apk | head -1)
