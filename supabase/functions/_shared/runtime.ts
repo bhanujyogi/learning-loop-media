@@ -55,6 +55,17 @@ export const sql = (role: Role = 'app_server'): Sql =>
     (pg ??= postgres(Deno.env.get('APP_DB_URL') ?? Deno.env.get('SUPABASE_DB_URL')!, {
       max: 3,
       prepare: false,
+      // Services hand over JSON that is ALREADY serialised (`$n::jsonb` with JSON.stringify(...)). The driver's default
+      // serializer would encode that string a second time and store a JSON *string* instead of an object/array
+      // (broke feed logging and would have stored creator posts as strings). Pass strings through, encode the rest.
+      types: {
+        json: {
+          to: 114,
+          from: [114, 3802],
+          serialize: (x: unknown) => (typeof x === 'string' ? x : JSON.stringify(x)),
+          parse: (x: string) => JSON.parse(x),
+        },
+      },
     })),
     role,
     false,
