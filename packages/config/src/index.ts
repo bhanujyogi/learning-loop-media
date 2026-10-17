@@ -150,6 +150,7 @@ export const RATE_LIMITS = {
   report_submit: { max: 10, windowSeconds: 3600 },
   content_upload: { max: 20, windowSeconds: 3600 },
   official_publish: { max: 50, windowSeconds: 3600 },
+  friend_action: { max: 60, windowSeconds: 3600 },
 } as const;
 
 export const MODERATION_CONFIG = {

@@ -15,6 +15,21 @@ export interface CreatedContent {
  * validated with the same schemas the renderer and grader use, a question's key never enters the public body, and the whole
  * thing is ONE transaction (a failure leaves nothing behind).
  */
+/** Free-text topics: use the picked concept, else a curriculum concept whose name matches the text, else the community catch-all. */
+async function resolveConcept(tx: Sql, conceptId?: string, topic?: string): Promise<string> {
+  if (conceptId) {
+    const r = await tx.query<{ id: string }>(`select id from concepts where id = $1`, [conceptId]);
+    if (!r.length) throw new DomainFailure('invalid_input', 'unknown_concept');
+    return r[0]!.id;
+  }
+  const hit = await tx.query<{ id: string }>(
+    `select id from concepts where lower(name) = lower($1) or lower(slug) = lower($1) order by id limit 1`,
+    [topic ?? ''],
+  );
+  return hit[0]?.id ?? COMMUNITY_CONCEPT;
+}
+export const COMMUNITY_CONCEPT = '50000000-0000-0000-0000-000000000999';
+
 export async function createContent(
   db: Sql,
   userId: string,
@@ -25,15 +40,12 @@ export async function createContent(
   const c = parsed.value;
   try {
     return await asUser(db, userId, async (tx) => {
-      const concept = await tx.query<{ id: string }>(`select id from concepts where id = $1`, [
-        c.conceptId,
-      ]);
-      if (!concept.length) throw new DomainFailure('invalid_input', 'unknown_concept');
+      const conceptId = await resolveConcept(tx, c.conceptId, c.topic);
       const item = await tx.query<{ id: string }>(
-        `insert into content_items(type, title, language, ownership, format, hook, difficulty, learning_objective)
-         values ($1::content_type, $2, $3, 'user', $4::format_type, $5::hook_type, $6, 'Community content')
+        `insert into content_items(type, title, language, ownership, format, hook, difficulty, learning_objective, topic_label)
+         values ($1::content_type, $2, $3, 'user', $4::format_type, $5::hook_type, $6, 'Community content', $7)
          returning id`,
-        [c.kind, c.title, c.language, c.format, c.hook, c.difficulty],
+        [c.kind, c.title, c.language, c.format, c.hook, c.difficulty, c.topic ?? null],
       );
       const id = item[0]!.id;
       const v = await tx.query<{ id: string }>(
@@ -47,10 +59,10 @@ export async function createContent(
         );
       await tx.query(
         `insert into content_concepts(content_id, concept_id, role) values ($1, $2, $3)`,
-        [id, c.conceptId, c.kind === 'question' ? 'assesses' : 'primary'],
+        [id, conceptId, c.kind === 'question' ? 'assesses' : 'primary'],
       );
       // the upload must be finalised BEFORE publishing so an unavailable video can never go live
-      if (c.mediaId) await tx.query(`select finalize_my_video($1, $2)`, [c.mediaId, id]);
+      for (const m of c.mediaIds ?? []) await tx.query(`select finalize_my_media($1, $2)`, [m, id]);
       await tx.query(`select publish_content($1)`, [id]);
       const m = await tx.query<{ moderation: string }>(
         `select moderation::text from content_items where id = $1`,

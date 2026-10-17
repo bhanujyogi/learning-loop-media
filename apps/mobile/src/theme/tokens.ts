@@ -1,13 +1,13 @@
 /** Learning Loop design tokens — one visual language for every screen. */
 export const palette = {
   light: {
-    bg: '#F7F7FB',
+    bg: '#FFFFFF',
     surface: '#FFFFFF',
-    surfaceAlt: '#EFEFF8',
-    text: '#14142B',
-    textMuted: '#5A5A78',
-    border: '#DCDCEB',
-    primary: '#4F46E5',
+    surfaceAlt: '#F3F3F5',
+    text: '#121212',
+    textMuted: '#6B6B76',
+    border: '#DBDBE0',
+    primary: '#0866D6',
     onPrimary: '#FFFFFF',
     accent: '#F59E0B',
     success: '#15803D',
@@ -17,14 +17,14 @@ export const palette = {
     focus: '#1D4ED8',
   },
   dark: {
-    bg: '#0E0E1A',
-    surface: '#181829',
-    surfaceAlt: '#222238',
-    text: '#F4F4FF',
-    textMuted: '#A5A5C4',
-    border: '#33334F',
-    primary: '#8B85FF',
-    onPrimary: '#0E0E1A',
+    bg: '#000000',
+    surface: '#0B0B0F',
+    surfaceAlt: '#1A1A22',
+    text: '#F5F5F7',
+    textMuted: '#A8A8B3',
+    border: '#2A2A33',
+    primary: '#4EA8FF',
+    onPrimary: '#000000',
     accent: '#FBBF24',
     success: '#4ADE80',
     successBg: '#12301D',
@@ -65,7 +65,7 @@ export const kindOf = (type: string, format?: string | null): Kind =>
       : 'other';
 
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
-export const radius = { sm: 8, md: 14, lg: 22, xl: 30, pill: 999 } as const;
+export const radius = { sm: 6, md: 10, lg: 14, xl: 24, pill: 999 } as const;
 /**
  * Line heights are >= 1.4x the font size on purpose: Devanagari (Hindi) has marks above and below the line and is visibly
  * clipped on Android at the ~1.25x typical of Latin-only scales (guarded by tokens.test.ts).

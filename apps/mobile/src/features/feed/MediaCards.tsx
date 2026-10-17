@@ -3,42 +3,10 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { useI18n } from '../../i18n/I18nProvider';
 import { track } from '../../lib/event-queue';
-import { supabase } from '../../lib/supabase';
+import { useMediaUrl } from '../../lib/media';
 import { radius, space } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { Button, Card, Text } from '../../ui/primitives';
-
-/** Resolves a media_assets id to a short-lived signed URL (private bucket; RLS decides what the user may read). */
-function useMediaUrl(mediaId: string | undefined) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    if (!mediaId) return;
-    let live = true;
-    (async () => {
-      const { data: m } = await supabase
-        .from('media_assets')
-        .select('bucket, storage_key')
-        .eq('id', mediaId)
-        .maybeSingle();
-      if (!m) {
-        if (live) setFailed(true);
-        return;
-      }
-      const { data, error } = await supabase.storage
-        .from(m.bucket)
-        .createSignedUrl(m.storage_key, 3600);
-      if (live) {
-        if (error || !data) setFailed(true);
-        else setUrl(data.signedUrl);
-      }
-    })().catch(() => live && setFailed(true));
-    return () => {
-      live = false;
-    };
-  }, [mediaId]);
-  return { url, failed };
-}
 
 /** Plays only while `active`; neighbours may preload; distant cards release the player entirely (parent unmounts this component). */
 export function VideoCard({

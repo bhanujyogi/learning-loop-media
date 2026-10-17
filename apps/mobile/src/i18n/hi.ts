@@ -1,10 +1,16 @@
 import type { MessageKey } from './en';
+import { chatHi } from './extra/chat.hi';
+import { feedHi } from './extra/feed.hi';
+import { profileHi } from './extra/profile.hi';
 
 /**
  * Hindi UI strings. Authored for this MVP and NOT yet reviewed by a native-speaker editor (see PROJECT_STATUS.md).
  * Content (questions, notes, …) is never translated here: it arrives in its own language from the database.
  */
 export const hi: Record<MessageKey, string> = {
+  ...chatHi,
+  ...profileHi,
+  ...feedHi,
   'common.loading': 'लोड हो रहा है…',
   'common.retry': 'फिर कोशिश करें',
   'common.back': 'वापस',
@@ -77,6 +83,8 @@ export const hi: Record<MessageKey, string> = {
   'onb.saveError': 'आपकी पसंद सेव नहीं हो सकी। कृपया फिर कोशिश करें।',
   'onb.optionsError': 'विकल्प लोड नहीं हो सके।',
 
+  'tabs.explore': 'खोजें',
+  'tabs.chats': 'चैट',
   'tabs.home': 'होम',
   'tabs.learn': 'प्रगति',
   'tabs.profile': 'प्रोफ़ाइल',

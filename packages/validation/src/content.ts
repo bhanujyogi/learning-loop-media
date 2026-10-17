@@ -63,6 +63,12 @@ export const videoBody = z.object({
   transcript: z.string().max(20_000).optional(),
 });
 
+// ---------- Image posts (e.g. notes shared as pictures) ----------
+export const imagePostBody = z.object({
+  mediaIds: z.array(id).min(1).max(10),
+  caption: z.string().max(2000).optional(),
+});
+
 // ---------- Questions ----------
 const option = z.object({ id: id, text: text(500), mediaId: id.optional() });
 const questionBase = z.object({

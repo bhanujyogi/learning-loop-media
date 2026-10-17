@@ -1,4 +1,10 @@
-import { FEEDBACK_MAP, sanitizeEvent, skipSignal, type RawEvent } from '@learning-loop/analytics';
+import {
+  dwellSignal,
+  FEEDBACK_MAP,
+  sanitizeEvent,
+  skipSignal,
+  type RawEvent,
+} from '@learning-loop/analytics';
 import {
   applyFeedback,
   recordImpression,
@@ -106,6 +112,19 @@ export async function recordEvents(
           creatorId: m?.owner ?? undefined,
         });
         f = { ...f, sessionFatigue: Math.min(1, f.sessionFatigue + 0.1) };
+        continue;
+      }
+      if (e.name === 'content_visible') {
+        const sig = dwellSignal(e.payload.visible_ms as number | undefined);
+        if (sig && m)
+          f = applyFeedback(f, {
+            type: 'engagement',
+            name: sig,
+            subjectId: m.subject ?? undefined,
+            format: m.format ?? undefined,
+            hook: m.hook,
+            creatorId: m.owner ?? undefined,
+          });
         continue;
       }
       const map = FEEDBACK_MAP[e.name];

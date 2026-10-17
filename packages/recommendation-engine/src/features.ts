@@ -41,6 +41,11 @@ export const ENGAGEMENT_SIGNALS: Record<string, number> = {
   content_open: 0.5,
   question_opened: 0.6,
   skip_immediate: -0.7,
+  // time spent on a card before moving on (see dwellSignal in @learning-loop/analytics): staying is interest
+  dwell_glance: -0.15,
+  dwell_short: 0.2,
+  dwell_medium: 0.45,
+  dwell_long: 0.65,
   skip: -0.3,
   content_reported: -1.0,
 };

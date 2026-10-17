@@ -151,3 +151,19 @@ export function skipSignal(payload: {
 }): 'skip' | 'skip_immediate' {
   return payload.immediate || (payload.watched_ms ?? Infinity) < 1500 ? 'skip_immediate' : 'skip';
 }
+
+/**
+ * Watch/dwell time → engagement signal. A card left within 1.5 s is already a skip; beyond that, the longer a learner
+ * stays (reading, watching, thinking) the stronger the interest. Capped at 2 minutes so a phone left on a card
+ * cannot inflate a preference. Thresholds are configuration, not truth: tune with experiments.
+ */
+export function dwellSignal(
+  visibleMs: number | undefined,
+): 'dwell_glance' | 'dwell_short' | 'dwell_medium' | 'dwell_long' | null {
+  if (visibleMs === undefined || !Number.isFinite(visibleMs) || visibleMs < 1500) return null;
+  const ms = Math.min(visibleMs, 120_000);
+  if (ms < 4000) return 'dwell_glance';
+  if (ms < 10_000) return 'dwell_short';
+  if (ms < 25_000) return 'dwell_medium';
+  return 'dwell_long';
+}

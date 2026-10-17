@@ -1,6 +1,9 @@
 import { env } from './env';
 import { supabase } from './supabase';
 
+/** Region of the Supabase project (Seoul). */
+export const DB_REGION = 'ap-northeast-2';
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -33,6 +36,9 @@ async function call<T>(
         authorization: `Bearer ${token}`,
         apikey: env.supabaseAnonKey,
         'content-type': 'application/json',
+        // Run the function in the DATABASE's region: it makes dozens of sequential queries, which were taking 7 s from a nearer
+        // region (every query crossed an ocean). One longer hop from the phone is far cheaper.
+        'x-region': DB_REGION,
       },
       body: init.body ? JSON.stringify(init.body) : undefined,
     });
@@ -103,6 +109,11 @@ export const api = {
     call<{ accepted: number; dropped: number }>('events', { body: { events } }),
   createContent: (b: unknown) =>
     call<{ contentId: string; moderation: string }>('create-content', { body: b }),
+  /** Up to 50 posts per request; every row gets its own result so one bad row never blocks the rest. */
+  createContentBulk: (items: unknown[]) =>
+    call<{ results: { ok: boolean; contentId?: string; error?: string }[] }>('create-content', {
+      body: { items },
+    }),
   onboarding: (b: {
     examId?: string;
     examDate?: string;

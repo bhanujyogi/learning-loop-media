@@ -133,7 +133,7 @@ describe('video posts', () => {
       ...r.payload,
       body: { mediaId: MEDIA, durationMs: 45_000 },
     });
-    expect(v.ok && v.value.mediaId).toBe(MEDIA);
+    expect(v.ok && v.value.mediaIds?.[0]).toBe(MEDIA);
   });
 });
 

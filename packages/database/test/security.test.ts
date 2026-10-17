@@ -140,20 +140,20 @@ describe('user content', () => {
       `insert into content_items(type,title,ownership,owner_org_id,publishing_identity_id) values ('note','fake','official','${orgId}','${identityId}')`,
     );
   });
-  it('cannot publish by flipping status; must use publish_content, which marks it for moderation', async () => {
+  it('cannot publish by flipping status; must use publish_content, which publishes it', async () => {
     const id = await note(alice, 'To publish');
     await draft(alice, id);
     await alice.fails(`update content_items set publishing = 'published' where id = $1`, [id]);
     await alice.q(`select publish_content($1)`, [id]);
-    // launch policy (pre-moderation): the owner sees the pending item, other learners do not until it is approved
-    expect(await bob.q(`select 1 from content_items where id = $1`, [id])).toHaveLength(0);
+    // launch policy (open publishing): live for everyone at once
+    expect(await bob.q(`select 1 from content_items where id = $1`, [id])).toHaveLength(1);
     const row = (
       await alice.q<{ moderation: string; verification: string }>(
         `select moderation, verification from content_items where id = $1`,
         [id],
       )
     )[0]!;
-    expect(row.moderation).toBe('pending_review');
+    expect(row.moderation).toBe('cleared');
     expect(row.verification).toBe('unverified');
   });
   it('cannot set verification/moderation/ownership fields directly', async () => {
@@ -374,11 +374,15 @@ describe('official publishing', () => {
 });
 
 describe('moderation', () => {
-  it('3 distinct reports on approved content escalate it to moderators; duplicate reports from one user are rejected', async () => {
+  it('3 distinct reports on trusted-creator content escalate it to moderators; duplicate reports from one user are rejected', async () => {
     const id = await note(alice, 'Reportable');
     await draft(alice, id);
     await alice.q(`select publish_content($1)`, [id]);
     await approve(id);
+    await db.query(
+      `insert into creator_profiles(user_id, trust_level) values ($1,'trusted') on conflict (user_id) do update set trust_level='trusted'`,
+      [alice.id],
+    );
     // reporters count at full weight only once their account is >7 days old (H3)
     await db.query(
       `update profiles set created_at = now() - interval '30 days' where id in ($1,$2,$3)`,

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { isSupportedLocale, type Locale } from '@learning-loop/shared';
-import { flashcardBody, noteBody, questionBody, videoBody } from './content.ts';
+import { flashcardBody, imagePostBody, noteBody, questionBody, videoBody } from './content.ts';
 import { toClientQuestion } from './grading.ts';
 
 /**
@@ -9,7 +9,7 @@ import { toClientQuestion } from './grading.ts';
  * verifies the upload). No images in text, no tables, no cross-links.
  * The same schemas the renderer and grader use validate it, so anything accepted here can be shown and graded.
  */
-export const CREATOR_KINDS = ['note', 'flashcard', 'question', 'video'] as const;
+export const CREATOR_KINDS = ['note', 'flashcard', 'question', 'video', 'image'] as const;
 export const CREATOR_NOTE_BLOCKS = [
   'heading',
   'paragraph',
@@ -32,7 +32,9 @@ const head = z.object({
   kind: z.enum(CREATOR_KINDS),
   title: z.string().trim().min(3).max(200),
   language: z.string(),
-  conceptId: uuid,
+  /** A curriculum concept (picked from suggestions) and/or free text: anything may be typed as the topic. */
+  conceptId: uuid.optional(),
+  topic: z.string().trim().min(2).max(80).optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']).default('medium'),
   body: z.unknown(),
   answer: z.unknown().optional(),
@@ -43,14 +45,17 @@ export interface CreatorContent {
   kind: (typeof CREATOR_KINDS)[number];
   title: string;
   language: Locale;
-  conceptId: string;
+  /** set when the creator picked a curriculum concept; otherwise the server resolves `topic` */
+  conceptId?: string;
+  /** free-text topic (kept on the post as its label) */
+  topic?: string;
   difficulty: number;
   format: 'note' | 'flashcard' | 'question' | 'video';
   hook: 'curiosity' | 'speed' | 'challenge';
   /** the PUBLIC body (for questions: no answer, no explanation) */
   body: Record<string, unknown>;
-  /** videos only: the pending upload to finalise and attach */
-  mediaId?: string;
+  /** videos and image posts: the pending uploads to finalise and attach */
+  mediaIds?: string[];
   /** questions only */
   key?: { answer: unknown; explanation: string };
 }
@@ -75,10 +80,12 @@ export function parseCreatorSubmission(input: unknown): CreatorResult {
   const s = h.data;
   if (!isSupportedLocale(s.language)) return bad('unsupported_language', 'language');
   if (hasControlChars(input)) return bad('invalid_characters');
+  if (!s.conceptId && !s.topic) return bad('topic_required', 'topic');
   const base = {
     title: s.title,
     language: s.language,
     conceptId: s.conceptId,
+    topic: s.topic,
     difficulty: CREATOR_DIFFICULTY[s.difficulty],
   };
 
@@ -115,7 +122,22 @@ export function parseCreatorSubmission(input: unknown): CreatorResult {
         format: 'video',
         hook: 'curiosity',
         body: v.data,
-        mediaId: v.data.mediaId,
+        mediaIds: [v.data.mediaId],
+      },
+    };
+  }
+  if (s.kind === 'image') {
+    const im = imagePostBody.safeParse(s.body);
+    if (!im.success) return bad('invalid_image_post', im.error.issues[0]?.path.join('.'));
+    return {
+      ok: true,
+      value: {
+        ...base,
+        kind: 'image',
+        format: 'note',
+        hook: 'curiosity',
+        body: im.data,
+        mediaIds: im.data.mediaIds,
       },
     };
   }

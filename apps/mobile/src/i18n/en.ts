@@ -2,7 +2,14 @@
  * English message catalogue = the source of truth for message keys. `hi.ts` must provide every key (compile-time) with the
  * same `{placeholders}` (tested). Plural keys use `_one` / `_other` suffixes and are selected via `count`.
  */
+import { chatEn } from './extra/chat.en';
+import { feedEn } from './extra/feed.en';
+import { profileEn } from './extra/profile.en';
+
 export const en = {
+  ...chatEn,
+  ...profileEn,
+  ...feedEn,
   // ---- common
   'common.loading': 'Loading…',
   'common.retry': 'Try again',
@@ -80,6 +87,8 @@ export const en = {
   'onb.optionsError': 'Could not load the options.',
 
   // ---- tabs
+  'tabs.explore': 'Explore',
+  'tabs.chats': 'Chats',
   'tabs.home': 'Home',
   'tabs.learn': 'Progress',
   'tabs.profile': 'Profile',

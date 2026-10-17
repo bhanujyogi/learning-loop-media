@@ -229,15 +229,15 @@ describe('H1 material edits to cleared content return it to review', () => {
         id,
       ])
     ).rows[0]!.moderation;
-  it('a title change after approval re-enters pending_review', async () => {
+  it('a title change no longer returns live content to review (open publishing)', async () => {
     const a = await mk('h1a@x.io');
     const id = await userNote(a);
     await approve(a, id);
     expect(await mod(id)).toBe('cleared');
     await a.q(`update content_items set title='abusive title' where id=$1`, [id]);
-    expect(await mod(id)).toBe('pending_review');
+    expect(await mod(id)).toBe('cleared');
   });
-  it('a new published version after approval re-enters pending_review (untrusted creator)', async () => {
+  it('a new published version stays live (open publishing)', async () => {
     const a = await mk('h1b@x.io');
     const id = await userNote(a);
     await approve(a, id);
@@ -246,7 +246,7 @@ describe('H1 material edits to cleared content return it to review', () => {
       [id],
     );
     await a.q(`select publish_content($1)`, [id]);
-    expect(await mod(id)).toBe('pending_review');
+    expect(await mod(id)).toBe('cleared');
   });
   it('trusted creators keep clearance on new versions; unchanged saves never reset it', async () => {
     const a = await mk('h1c@x.io');
@@ -287,7 +287,7 @@ describe('H3 weighted reports; throwaway accounts cannot hide content', () => {
     const owner = await mk('h3o1@x.io');
     const id = await userNote(owner);
     for (let i = 0; i < 3; i++) await report(await mk(`h3n${i}@x.io`), id);
-    expect(await mod(id)).toBe('pending_review');
+    expect(await mod(id)).toBe('cleared');
     const c = (
       await db.query<{ priority: number }>(
         `select priority from moderation_cases where target_id=$1`,
@@ -333,9 +333,13 @@ describe('H3 weighted reports; throwaway accounts cannot hide content', () => {
     ).rows[0]!;
     expect(c.escalated).toBe(true);
   });
-  it('human-approved (cleared) content is not auto-hidden either; reporters cannot set their own weight', async () => {
+  it('content of a trusted creator is not auto-hidden either; reporters cannot set their own weight', async () => {
     const owner = await mk('h3o3@x.io');
     const id = await userNote(owner);
+    await db.query(
+      `insert into creator_profiles(user_id, trust_level) values ($1,'trusted') on conflict (user_id) do update set trust_level='trusted'`,
+      [owner.id],
+    );
     const m = await mk('h3m@x.io');
     await grantRole(db, m.id!, 'moderator');
     await m.q(`select apply_moderation_action('content',$1,'approve','approved after review')`, [

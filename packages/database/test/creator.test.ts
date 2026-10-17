@@ -76,9 +76,9 @@ const fails = async (p: Promise<unknown>) =>
   )) as DomainFailure | null;
 
 describe('creator upload service', () => {
-  it('publishes a note as the caller: owned by them, pending review, visible only to the owner', async () => {
+  it('publishes a note as the caller: owned by them, live immediately', async () => {
     const r = await createContent(asCaller, creator, note());
-    expect(r.moderation).toBe('pending_review');
+    expect(r.moderation).toBe('cleared'); // open publishing: no approval step
     const row = (
       await db.query<{
         owner_user_id: string;
@@ -105,7 +105,7 @@ describe('creator upload service', () => {
     ).toHaveLength(1);
     expect(
       await asViewer.q(`select 1 from content_items where id = $1`, [r.contentId]),
-    ).toHaveLength(0);
+    ).toHaveLength(1);
     expect(
       (
         await db.query(`select 1 from content_concepts where content_id = $1 and concept_id = $2`, [
@@ -135,7 +135,7 @@ describe('creator upload service', () => {
     ).toHaveLength(1);
   });
 
-  it('a question keeps its key private; after approval it is served to Hindi learners and graded by the normal server path', async () => {
+  it('a question keeps its key private; it is served to Hindi learners and graded by the normal server path', async () => {
     const r = await createContent(asCaller, creator, question());
     const body = (
       await db.query<{ body: object }>(
@@ -152,20 +152,7 @@ describe('creator upload service', () => {
         )
       ).rows,
     ).toHaveLength(1);
-    // not gradable/served before approval…
-    await expect(
-      submitAnswer(server, {
-        userId: viewer,
-        questionId: r.contentId,
-        response: { optionId: 'a' },
-        now: T0,
-      }),
-    ).rejects.toMatchObject({ code: 'not_found' });
-    await new Actor(db, modId).q(
-      `select apply_moderation_action('content', $1, 'approve', 'reviewed and approved for launch')`,
-      [r.contentId],
-    );
-    // …and after approval the normal loop works
+    // live immediately: the normal loop works
     const seen = new Set<string>();
     for (let i = 0; i < 6; i++)
       for (const it of (await getFeed(server, { userId: viewer, limit: 30, now: T0 + i, seed: i }))
@@ -263,7 +250,7 @@ describe('creator upload service', () => {
     it('a registered upload is finalised, attached and published (visible after approval)', async () => {
       const mediaId = await upload(creator);
       const r = await createContent(asCaller, creator, video(mediaId));
-      expect(r.moderation).toBe('pending_review');
+      expect(r.moderation).toBe('cleared');
       const m = await db.query<{ status: string; content_id: string }>(
         `select status, content_id from media_assets where id = $1`,
         [mediaId],
@@ -278,7 +265,7 @@ describe('creator upload service', () => {
         ).items)
           seen.set(it.contentId, it);
       expect(seen.has(live.contentId)).toBe(true); // the trusted creator's video reaches other learners
-      expect(seen.has(r.contentId)).toBe(false); // the other waits for a moderator
+      expect(seen.has(r.contentId)).toBe(true); // everyone's videos are live
     });
 
     it("rejects a missing file, a size mismatch, someone else's upload and reuse; nothing is left behind", async () => {
@@ -324,6 +311,95 @@ describe('creator upload service', () => {
         ),
       );
       expect(e).not.toBeNull();
+    });
+  });
+  describe('free-text topics and image posts', () => {
+    const upload = async (owner: string, mime: string, ext: string) => {
+      const key = `${owner}/${crypto.randomUUID()}.${ext}`;
+      await db.query(
+        `insert into storage.objects(bucket_id, name, owner, metadata) values ('media', $1, $2, $3::jsonb)`,
+        [key, owner, JSON.stringify({ size: 1234, mimetype: mime })],
+      );
+      const r = await db.query<{ id: string }>(
+        `insert into media_assets(owner_user_id, bucket, storage_key, mime_type, size_bytes) values ($1,'media',$2,$3,1234) returning id`,
+        [owner, key, mime],
+      );
+      return r.rows[0]!.id;
+    };
+    const concepts = async (contentId: string) =>
+      (
+        await db.query<{ concept_id: string; topic_label: string | null }>(
+          `select cc.concept_id, c.topic_label from content_concepts cc join content_items c on c.id = cc.content_id where cc.content_id = $1`,
+          [contentId],
+        )
+      ).rows;
+
+    it('any typed topic is accepted: a matching curriculum concept is used, otherwise the community catch-all; the text is kept as the label', async () => {
+      const typed = await createContent(
+        asCaller,
+        creator,
+        note({ conceptId: undefined, topic: 'Quantum gravity for beginners' }),
+      );
+      expect(await concepts(typed.contentId)).toEqual([
+        {
+          concept_id: '50000000-0000-0000-0000-000000000999',
+          topic_label: 'Quantum gravity for beginners',
+        },
+      ]);
+      const matched = await createContent(
+        asCaller,
+        creator,
+        note({ conceptId: undefined, topic: "ohm's law" }),
+      );
+      expect((await concepts(matched.contentId))[0]!.concept_id).toBe(OHM);
+      expect(
+        (await fails(createContent(asCaller, creator, note({ conceptId: undefined }))))?.code,
+      ).toBe('invalid_input');
+    });
+
+    it('an image post attaches every uploaded picture and goes live; foreign or wrong-type files are refused', async () => {
+      const a = await upload(creator, 'image/jpeg', 'jpg');
+      const b = await upload(creator, 'image/png', 'png');
+      const r = await createContent(asCaller, creator, {
+        kind: 'image',
+        title: 'My handwritten notes',
+        language: 'en',
+        topic: 'Thermodynamics',
+        body: { mediaIds: [a, b], caption: 'Chapter 3' },
+      });
+      const m = await db.query<{ status: string; content_id: string }>(
+        `select status, content_id from media_assets where id in ($1,$2)`,
+        [a, b],
+      );
+      expect(m.rows.every((x) => x.status === 'ready' && x.content_id === r.contentId)).toBe(true);
+      const theirs = await upload(viewer, 'image/jpeg', 'jpg');
+      expect(
+        (
+          await fails(
+            createContent(asCaller, creator, {
+              kind: 'image',
+              title: 'Stolen pic',
+              language: 'en',
+              topic: 'Anything',
+              body: { mediaIds: [theirs] },
+            }),
+          )
+        )?.code,
+      ).toBe('forbidden');
+      const pdf = await upload(creator, 'application/pdf', 'pdf');
+      expect(
+        (
+          await fails(
+            createContent(asCaller, creator, {
+              kind: 'image',
+              title: 'Not an image',
+              language: 'en',
+              topic: 'Anything',
+              body: { mediaIds: [pdf] },
+            }),
+          )
+        )?.code,
+      ).toBe('invalid_input');
     });
   });
 });

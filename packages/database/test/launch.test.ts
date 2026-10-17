@@ -76,8 +76,8 @@ const inFeed = async (userId: string, id: string) => {
   return seen.has(id);
 };
 
-describe('pre-moderation: user content is invisible to others until approved', () => {
-  it("an untrusted creator's published item is pending: owner sees it; other learners, anon, the feed and grading do not", async () => {
+describe('open publishing: user content is live at once; moderators and reports are the safety net', () => {
+  it("a new creator's published item is live: owner and other learners see it, the feed serves it and it is gradable; anon has no access", async () => {
     const id = await upload(creator, 'question', 'My question');
     expect(
       (
@@ -86,22 +86,22 @@ describe('pre-moderation: user content is invisible to others until approved', (
           [id],
         )
       )[0]!.moderation,
-    ).toBe('pending_review');
+    ).toBe('cleared');
     expect(await visibleTo(creator, id)).toBe(true);
-    expect(await visibleTo(viewer, id)).toBe(false);
+    expect(await visibleTo(viewer, id)).toBe(true);
     expect(await anon.denied(`select 1 from content_items where id = $1`, [id])).toBe(true); // anon: no access at all
-    expect(
-      await viewer.q(`select 1 from content_versions where content_id = $1`, [id]),
-    ).toHaveLength(0);
-    expect(await inFeed(viewerId, id)).toBe(false);
-    await expect(
-      submitAnswer(sql, { userId: viewerId, questionId: id, response: { optionId: 'a' }, now: T0 }),
-    ).rejects.toMatchObject({ code: 'not_found' });
+    expect(await inFeed(viewerId, id)).toBe(true);
+    const r = await submitAnswer(sql, {
+      userId: viewerId,
+      questionId: id,
+      response: { optionId: 'a' },
+      now: T0,
+    });
+    expect(r.correct).toBe(true);
   });
 
-  it('a moderator approval makes it visible, feedable and gradable; it is then served with language/creator fields', async () => {
+  it('it is feedable and gradable and served with language/creator fields', async () => {
     const id = await upload(creator, 'question', 'My question');
-    await mod.q(`select apply_moderation_action('content', $1, 'approve', 'looks fine')`, [id]);
     expect(await visibleTo(viewer, id)).toBe(true);
     expect(await inFeed(viewerId, id)).toBe(true);
     const r = await submitAnswer(sql, {
@@ -117,11 +117,11 @@ describe('pre-moderation: user content is invisible to others until approved', (
     if (item) expect(item.creatorUserId).toBe(creatorId);
   });
 
-  it("a trusted creator's content is auto-approved; an edit that needs re-review hides it again", async () => {
+  it("a trusted creator's content is auto-approved; an edit no longer hides it", async () => {
     const id = await upload(trusted, 'note', 'Trusted note');
     expect(await visibleTo(viewer, id)).toBe(true);
     await trusted.q(`update content_items set title = 'Changed title' where id = $1`, [id]);
-    expect(await visibleTo(viewer, id)).toBe(false); // H1: material edit → pending_review → invisible again
+    expect(await visibleTo(viewer, id)).toBe(true); // open publishing: edits do not re-enter review
     expect(await visibleTo(trusted, id)).toBe(true);
   });
 
