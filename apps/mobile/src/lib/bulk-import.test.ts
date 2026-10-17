@@ -1,4 +1,5 @@
 import { parseCreatorSubmission } from '@learning-loop/validation';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   BULK_CHUNK,
@@ -146,7 +147,7 @@ describe('parseBulkFile', () => {
   it('tolerates a BOM, ```json fences and a bare list', () => {
     const body = file({ version: 1, language: 'en', topic: 'Physics', items: [enMcq] });
     for (const t of [
-      '﻿' + body,
+      '\uFEFF' + body,
       '```json\n' + body + '\n```',
       'Here you go:\n```\n' + body + '\n```\nDone',
     ]) {
@@ -156,7 +157,7 @@ describe('parseBulkFile', () => {
     }
     const bare = parseBulkFile(file([{ ...enMcq, language: 'en', topic: 'Ohm' }]));
     expect(bare.items).toHaveLength(1);
-    expect(cleanJsonText('﻿  {"a":1} ')).toBe('{"a":1}');
+    expect(cleanJsonText('\uFEFF  {"a":1} ')).toBe('{"a":1}');
   });
 
   it('rejects unusable files as a whole', () => {
@@ -179,6 +180,26 @@ describe('parseBulkFile', () => {
     expect(utf8Bytes('नई')).toBe(6);
     expect(utf8Bytes('😀')).toBe(4);
     expect(parseBulkFile('न'.repeat(1_800_000)).fatal).toBe('too_big'); // 5.4 MB
+  });
+});
+
+describe('content/bulk-template.json', () => {
+  it('is a valid file: all 6 example items pass the server validator', () => {
+    const text = readFileSync(
+      new URL('../../../../content/bulk-template.json', import.meta.url),
+      'utf8',
+    );
+    const r = parseBulkFile(text);
+    expect(r.errors).toEqual([]);
+    expect(r.items).toHaveLength(6);
+    expect(r.items.map((i) => i.payload.kind)).toEqual([
+      'question',
+      'question',
+      'question',
+      'question',
+      'flashcard',
+      'note',
+    ]);
   });
 });
 

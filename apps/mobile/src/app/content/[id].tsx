@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ContentBody } from '../../features/feed/ContentBody';
-import { kindLabelKey } from '../../features/feed/card-model';
+import { typeLabelKey } from '../../features/feed/card-model';
+import { ShareSheet } from '../../features/share/ShareSheet';
 import { useI18n } from '../../i18n/I18nProvider';
 import { track } from '../../lib/event-queue';
 import { useNotice } from '../../lib/use-notice';
@@ -33,6 +34,7 @@ export default function ContentScreen() {
   const { colors, kind: kindColors } = useTheme();
   const { notice, show } = useNotice();
   const [reporting, setReporting] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const recommendationId = rec ? rec : undefined;
 
   const q = useQuery({
@@ -71,7 +73,11 @@ export default function ContentScreen() {
     const k = kindColors(kind);
     body = (
       <ScrollView contentContainerStyle={{ padding: space.xl, gap: space.lg }}>
-        <Pill label={t(kindLabelKey(kind, data.format)).toUpperCase()} fg={k.fg} bg={k.bg} />
+        <Pill
+          label={t(typeLabelKey(data.type, kind, data.format)).toUpperCase()}
+          fg={k.fg}
+          bg={k.bg}
+        />
         <Text variant="display" accessibilityRole="header">
           {data.title}
         </Text>
@@ -80,7 +86,15 @@ export default function ContentScreen() {
           recommendationId={recommendationId}
           mode="full"
           onNext={goBack}
+          onDoubleTap={
+            reactions.liked.has(data.id)
+              ? undefined
+              : () => reactions.toggleLike(data.id, recommendationId)
+          }
         />
+        {data.type === 'image' && (data.body as { caption?: string } | null)?.caption ? (
+          <Text>{(data.body as { caption?: string }).caption}</Text>
+        ) : null}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
           <ToggleButton
             on={reactions.liked.has(data.id)}
@@ -89,6 +103,11 @@ export default function ContentScreen() {
             labelOn={t('social.liked')}
             labelOff={t('social.like')}
             onPress={() => reactions.toggleLike(data.id, recommendationId)}
+          />
+          <Button
+            variant="secondary"
+            label={t('feed.card.share')}
+            onPress={() => setSharing(true)}
           />
           <Button variant="ghost" label={t('report.action')} onPress={() => setReporting(true)} />
           <ToggleButton
@@ -108,6 +127,14 @@ export default function ContentScreen() {
       <ScreenHeader />
       <View style={{ flex: 1 }}>
         {body}
+        {data && sharing ? (
+          <ShareSheet
+            contentId={data.id}
+            title={data.title}
+            visible
+            onClose={() => setSharing(false)}
+          />
+        ) : null}
         {data ? (
           <ReportSheet
             visible={reporting}

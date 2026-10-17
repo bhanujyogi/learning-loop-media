@@ -60,7 +60,7 @@ export function utf8Bytes(s: string): number {
 
 /** Removes a UTF-8 byte-order mark and a surrounding ```json … ``` fence (chat tools often add one). */
 export function cleanJsonText(text: string): string {
-  let s = text.replace(/^﻿/, '').trim();
+  let s = text.replace(/^\uFEFF/, '').trim();
   const fenced = /```[a-zA-Z]*\s*\n?([\s\S]*?)```/.exec(s);
   if (fenced) s = fenced[1]!.trim();
   return s;

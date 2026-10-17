@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "language": "hi",
+  "topic": "सामान्य ज्ञान",
+  "items": [
+    {
+      "q": "भारत की राजधानी क्या है?",
+      "options": ["मुंबई", "नई दिल्ली", "कोलकाता", "चेन्नई"],
+      "answer": "B",
+      "explanation": "भारत की राजधानी नई दिल्ली है।",
+      "difficulty": "easy"
+    },
+    {
+      "kind": "question",
+      "title": "Unit of electrical resistance",
+      "language": "en",
+      "topic": "Electricity",
+      "difficulty": "medium",
+      "body": {
+        "type": "single_choice",
+        "prompt": "Which unit measures electrical resistance?",
+        "options": [
+          { "id": "a", "text": "Volt" },
+          { "id": "b", "text": "Ohm" },
+          { "id": "c", "text": "Watt" },
+          { "id": "d", "text": "Ampere" }
+        ]
+      },
+      "answer": { "optionId": "b" },
+      "explanation": "Resistance is measured in ohms (symbol: Ω)."
+    },
+    {
+      "kind": "question",
+      "title": "सूर्य एक तारा है",
+      "body": { "type": "true_false", "prompt": "सूर्य एक तारा है।" },
+      "answer": { "value": true },
+      "explanation": "सूर्य हमारे सौरमंडल का तारा है।",
+      "difficulty": "easy"
+    },
+    {
+      "kind": "question",
+      "title": "Capital of Rajasthan",
+      "language": "en",
+      "topic": "Indian states",
+      "body": { "type": "fill_blank", "prompt": "The capital of Rajasthan is ______." },
+      "answer": { "accepted": ["Jaipur"] },
+      "explanation": "Jaipur, the Pink City, is the capital of Rajasthan."
+    },
+    {
+      "kind": "flashcard",
+      "title": "साधारण ब्याज का सूत्र",
+      "topic": "गणित",
+      "body": { "front": "साधारण ब्याज (SI) का सूत्र क्या है?", "back": "SI = (P × R × T) / 100" }
+    },
+    {
+      "kind": "note",
+      "title": "Ohm's law in one minute",
+      "language": "en",
+      "topic": "Electricity",
+      "body": {
+        "blocks": [
+          { "type": "heading", "level": 2, "text": "Ohm's law" },
+          {
+            "type": "paragraph",
+            "text": "The current through a conductor is proportional to the voltage across it."
+          },
+          { "type": "formula", "latex": "V = I \\times R" },
+          {
+            "type": "revision_prompt",
+            "prompt": "What happens to the current if the resistance doubles?"
+          }
+        ]
+      }
+    }
+  ]
+}

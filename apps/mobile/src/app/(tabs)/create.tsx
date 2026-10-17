@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { Alert, FlatList, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { kindLabelKey } from '../../features/feed/card-model';
+import { typeLabelKey } from '../../features/feed/card-model';
 import { useI18n } from '../../i18n/I18nProvider';
 import { useAuth } from '../../lib/auth';
 import { postStatus, type PostStatus } from '../../lib/creator-form';
@@ -79,6 +79,19 @@ export default function CreateTab() {
       </Text>
       <Text muted>{t('create.intro')}</Text>
       <Button label={t('create.new')} onPress={() => router.push('/create/new')} />
+      <Card style={{ gap: space.sm }}>
+        <Text variant="heading" accessibilityRole="header">
+          {t('feed.bulk.entry')}
+        </Text>
+        <Text variant="caption" muted>
+          {t('feed.bulk.entryHelp')}
+        </Text>
+        <Button
+          variant="secondary"
+          label={t('feed.bulk.entry')}
+          onPress={() => router.push('/create/bulk')}
+        />
+      </Card>
       <Button
         variant="ghost"
         label={t('create.guidelines')}
@@ -110,7 +123,7 @@ export default function CreateTab() {
             <Card style={{ gap: space.sm }}>
               <View style={{ flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' }}>
                 <Pill
-                  label={t(kindLabelKey(kind, item.format)).toUpperCase()}
+                  label={t(typeLabelKey(item.type, kind, item.format)).toUpperCase()}
                   fg={k.fg}
                   bg={k.bg}
                 />

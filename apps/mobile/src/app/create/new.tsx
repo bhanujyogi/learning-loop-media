@@ -1,15 +1,16 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ConceptPicker } from '../../features/create/ConceptPicker';
+import { TopicField } from '../../features/create/TopicField';
 import { useI18n } from '../../i18n/I18nProvider';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import {
   buildSubmission,
   emptyForm,
+  MAX_IMAGES,
   MAX_OPTIONS,
   type CreatorForm,
   type CreatorKind,
@@ -17,19 +18,34 @@ import {
   type FormError,
   type QuestionType,
 } from '../../lib/creator-form';
+import { imageProblem, pickImages, uploadPostImage } from '../../lib/upload';
 import { pickVideo, uploadVideo } from '../../lib/video-upload';
-import { space } from '../../theme/tokens';
+import { radius, space } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { LanguageSwitch } from '../../ui/LanguageSwitch';
 import { Animated, enter } from '../../ui/motion';
-import { Button, ChoiceCard, Chip, Field, Text } from '../../ui/primitives';
+import { Button, ChoiceCard, Chip, Field, ProgressBar, Text } from '../../ui/primitives';
 import { ScreenHeader, useGoBack } from '../../ui/ScreenHeader';
 
-const KINDS: CreatorKind[] = ['note', 'flashcard', 'question', 'video'];
+const KINDS: CreatorKind[] = ['note', 'flashcard', 'question', 'image', 'video'];
+
+/** Only the kinds that existed before this screen was reworked have `create.*` copy; the others live in the feed catalogue. */
+const kindLabel = (k: CreatorKind) =>
+  k === 'image' ? 'feed.create.kind.image' : (`create.kind.${k}` as const);
+const kindDesc = (k: CreatorKind) =>
+  k === 'image' ? 'feed.create.kind.image.desc' : (`create.kind.${k}.desc` as const);
+/** Errors the form reports that have no `create.err.*` text. */
+const errKey = (e: FormError) =>
+  e === 'images' || e === 'imageType' || e === 'imageSize'
+    ? (`feed.err.${e}` as const)
+    : (`create.err.${e}` as const);
+
+/** Where a failed post stopped, so the message can say what to do. */
+type Stage = { kind: 'upload'; n: number; total: number } | { kind: 'save' };
 const QTYPES: QuestionType[] = ['single_choice', 'true_false', 'fill_blank', 'numerical'];
 const LEVELS: Difficulty[] = ['easy', 'medium', 'hard'];
 
-/** Composer for notes, flashcards and questions. The server validates again and applies review rules; this screen only helps. */
+/** Composer for notes, flashcards, questions, picture posts and videos. The server validates again; this screen only helps. Posts go live at once. */
 export default function NewPost() {
   const { t, locale } = useI18n();
   const { colors } = useTheme();
@@ -41,13 +57,15 @@ export default function NewPost() {
   const [showErrors, setShowErrors] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<'pending' | 'live' | null>(null);
+  const [done, setDone] = useState(false);
+  const [progress, setProgress] = useState<{ text: string; value: number } | null>(null);
+  const [imageNote, setImageNote] = useState<string | null>(null);
   const submitting = useRef(false);
   const set = (p: Partial<CreatorForm>) => setF((cur) => ({ ...cur, ...p }));
 
   const built = buildSubmission(f);
   const missing: FormError[] = showErrors && !built.ok ? built.errors : [];
-  const msg = (e: FormError) => (missing.includes(e) ? t(`create.err.${e}`) : null);
+  const msg = (e: FormError) => (missing.includes(e) ? t(errKey(e)) : null);
 
   const post = async () => {
     if (submitting.current) return; // no double posts
@@ -58,32 +76,59 @@ export default function NewPost() {
     submitting.current = true;
     setBusy(true);
     setError(null);
+    let stage: Stage = { kind: 'save' };
     try {
       let payload = built.payload;
       if (f.kind === 'video' && f.video && session) {
+        stage = { kind: 'upload', n: 1, total: 1 };
+        setProgress({ text: t('feed.create.uploading', { n: 1, total: 1 }), value: 0.1 });
         const up = await uploadVideo(f.video, session.user.id);
         payload = { ...payload, body: { mediaId: up.mediaId, durationMs: up.durationMs } };
       }
-      const r = await api.createContent(payload);
+      if (f.kind === 'image' && session) {
+        const mediaIds: string[] = [];
+        for (const [i, img] of f.images.entries()) {
+          stage = { kind: 'upload', n: i + 1, total: f.images.length };
+          setProgress({
+            text: t('feed.create.uploading', { n: i + 1, total: f.images.length }),
+            value: i / f.images.length,
+          });
+          mediaIds.push(await uploadPostImage(img, session.user.id));
+        }
+        payload = { ...payload, body: { ...(payload.body as object), mediaIds } };
+      }
+      stage = { kind: 'save' };
+      setProgress({ text: t('feed.create.publishing'), value: 1 });
+      await api.createContent(payload);
       void qc.invalidateQueries({ queryKey: ['my-posts', session?.user.id] });
-      setDone(r.moderation === 'cleared' ? 'live' : 'pending');
+      setDone(true);
     } catch (e) {
-      const a = e instanceof ApiError ? e : null;
-      setError(
-        a?.isOffline
-          ? t('create.postErr.offline')
-          : a?.status === 429
-            ? t('create.postErr.rate')
-            : a?.status === 403
-              ? t('create.postErr.forbidden')
-              : a?.status === 400
-                ? t('create.postErr.invalid')
-                : t('create.postErr.generic'),
-      );
+      setError(t(postErrorKey(e, stage), stage.kind === 'upload' ? stage : undefined));
     } finally {
       submitting.current = false;
       setBusy(false);
+      setProgress(null);
     }
+  };
+
+  const addImages = async () => {
+    const picked = await pickImages(true);
+    if (!picked.length) return;
+    const room = MAX_IMAGES - f.images.length;
+    const fresh = picked.filter((p) => !f.images.some((x) => x.uri === p.uri));
+    const usable = fresh.filter((p) => !imageProblem(p));
+    const badType = fresh.some((p) => imageProblem(p) === 'type');
+    const badSize = fresh.some((p) => imageProblem(p) === 'size');
+    set({ images: [...f.images, ...usable.slice(0, room)] });
+    setImageNote(
+      badType
+        ? t('feed.err.imageType')
+        : badSize
+          ? t('feed.err.imageSize')
+          : usable.length > room
+            ? t('feed.create.image.max')
+            : null,
+    );
   };
 
   if (done)
@@ -102,16 +147,17 @@ export default function NewPost() {
           style={{ gap: space.lg }}
           accessibilityLiveRegion="polite"
         >
-          <Text style={{ fontSize: 56, textAlign: 'center' }}>{done === 'live' ? '🎉' : '⏳'}</Text>
+          <Text style={{ fontSize: 56, textAlign: 'center' }}>🎉</Text>
           <Text variant="heading" style={{ textAlign: 'center' }}>
-            {done === 'live' ? t('create.done.live') : t('create.done.pending')}
+            {t('create.done.live')}
           </Text>
           <Button
             label={t('create.new')}
             onPress={() => {
               setF(emptyForm(locale));
               setShowErrors(false);
-              setDone(null);
+              setDone(false);
+              setImageNote(null);
             }}
           />
           <Button variant="secondary" label={t('common.back')} onPress={goBack} />
@@ -135,8 +181,8 @@ export default function NewPost() {
             {KINDS.map((k) => (
               <ChoiceCard
                 key={k}
-                label={t(`create.kind.${k}`)}
-                description={t(`create.kind.${k}.desc`)}
+                label={t(kindLabel(k))}
+                description={t(kindDesc(k))}
                 state={f.kind === k ? 'selected' : 'idle'}
                 onPress={() => set({ kind: k })}
               />
@@ -156,10 +202,11 @@ export default function NewPost() {
             <LanguageSwitch value={f.language} onChange={(language) => set({ language })} />
           </View>
 
-          <ConceptPicker
-            value={f.conceptId}
-            onChange={(conceptId) => set({ conceptId })}
-            error={msg('concept')}
+          <TopicField
+            topic={f.topic}
+            conceptId={f.conceptId}
+            onChange={(v) => set({ topic: v.topic, conceptId: v.conceptId })}
+            error={msg('topic')}
           />
 
           <View style={{ gap: space.sm }}>
@@ -190,6 +237,66 @@ export default function NewPost() {
               <Text variant="caption" muted>
                 {t('create.field.noteHelp')}
               </Text>
+            </View>
+          ) : null}
+
+          {f.kind === 'image' ? (
+            <View style={{ gap: space.sm }}>
+              <Button
+                variant="secondary"
+                label={f.images.length ? t('feed.create.image.add') : t('feed.create.image.pick')}
+                onPress={() => void addImages()}
+                disabled={f.images.length >= MAX_IMAGES}
+              />
+              {f.images.length ? (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+                  {f.images.map((img, i) => (
+                    <View key={img.uri} style={{ width: 96 }}>
+                      <Image
+                        source={{ uri: img.uri }}
+                        accessibilityLabel={t('feed.create.image.alt', {
+                          n: i + 1,
+                          total: f.images.length,
+                        })}
+                        style={{
+                          width: 96,
+                          height: 96,
+                          borderRadius: radius.md,
+                          backgroundColor: colors.surfaceAlt,
+                        }}
+                      />
+                      <Button
+                        variant="ghost"
+                        label={t('feed.create.image.remove')}
+                        accessibilityLabel={t('feed.create.image.removeN', { n: i + 1 })}
+                        onPress={() => set({ images: f.images.filter((_, j) => j !== i) })}
+                      />
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              <Text variant="caption" muted>
+                {t('feed.create.image.help')}
+              </Text>
+              {imageNote ? (
+                <Text accessibilityRole="alert" variant="caption" style={{ color: colors.danger }}>
+                  {imageNote}
+                </Text>
+              ) : null}
+              {msg('images') || msg('imageType') || msg('imageSize') ? (
+                <Text accessibilityRole="alert" variant="caption" style={{ color: colors.danger }}>
+                  {msg('images') ?? msg('imageType') ?? msg('imageSize')}
+                </Text>
+              ) : null}
+              <Field
+                label={t('feed.create.image.caption')}
+                value={f.caption}
+                onChangeText={(caption) => set({ caption })}
+                maxLength={2000}
+                multiline
+                textAlignVertical="top"
+                style={{ minHeight: 80 }}
+              />
             </View>
           ) : null}
 
@@ -404,6 +511,14 @@ export default function NewPost() {
               {error}
             </Text>
           ) : null}
+          {progress ? (
+            <View style={{ gap: space.xs }} accessibilityLiveRegion="polite">
+              <Text variant="caption" muted>
+                {progress.text}
+              </Text>
+              <ProgressBar value={progress.value} label={progress.text} />
+            </View>
+          ) : null}
           <Button
             label={busy ? t('create.submitting') : t('create.submit')}
             onPress={() => void post()}
@@ -413,4 +528,25 @@ export default function NewPost() {
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+}
+
+/** Picks the most specific message the failure allows (HTTP status for the server, status/code for storage uploads). */
+function postErrorKey(e: unknown, stage: Stage) {
+  if (e instanceof ApiError) {
+    if (e.isOffline) return 'create.postErr.offline' as const;
+    if (e.status === 401) return 'feed.err.signedOut' as const;
+    if (e.status === 429 || e.code === 'rate_limited') return 'create.postErr.rate' as const;
+    if (e.status === 403) return 'create.postErr.forbidden' as const;
+    if (e.status === 400) return 'create.postErr.invalid' as const;
+    return 'create.postErr.generic' as const;
+  }
+  if (stage.kind === 'upload') {
+    const x = e as { status?: number | string; statusCode?: number | string; message?: string };
+    const code = Number(x?.statusCode ?? x?.status);
+    if (code === 413) return 'feed.err.uploadBig' as const;
+    if (code === 401 || code === 403) return 'feed.err.uploadDenied' as const;
+    if (code === 429) return 'create.postErr.rate' as const;
+    return stage.total > 1 ? ('feed.err.uploadN' as const) : ('feed.err.upload' as const);
+  }
+  return 'create.postErr.generic' as const;
 }

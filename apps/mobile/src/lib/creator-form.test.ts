@@ -156,7 +156,9 @@ describe('topic', () => {
     expect(v.ok && v.value.conceptId).toBe(CONCEPT);
   });
   it('Hindi topics pass the server validator', () => {
-    expect(accepted(base({ language: 'hi', topic: 'ओम का नियम', noteText: 'V = IR' })).ok).toBe(true);
+    expect(accepted(base({ language: 'hi', topic: 'ओम का नियम', noteText: 'V = IR' })).ok).toBe(
+      true,
+    );
   });
 });
 

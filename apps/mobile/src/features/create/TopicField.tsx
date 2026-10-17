@@ -23,7 +23,9 @@ export function suggestConcepts<C extends { name: string }>(
   const needle = typed.trim().toLowerCase();
   if (needle.length < 1) return [];
   return all
-    .filter((c) => nameOf(c).toLowerCase().includes(needle) || c.name.toLowerCase().includes(needle))
+    .filter(
+      (c) => nameOf(c).toLowerCase().includes(needle) || c.name.toLowerCase().includes(needle),
+    )
     .slice(0, limit);
 }
 
