@@ -1,0 +1,58 @@
+HOW TO UPLOAD THOUSANDS OF QUESTIONS (simple steps)
+====================================================
+1. Open Claude chat (or ChatGPT). Copy EVERYTHING between the two lines "COPY FROM HERE" and "COPY UNTIL HERE" and paste it.
+2. Right after it, paste your questions (or attach the file / photos of the pages).
+3. Claude will give you JSON. Save it as a file whose name ends with .json (example: physics-1.json) and keep it on your phone.
+   Tip: ask Claude to "give it as a downloadable .json file" if it can, or copy the answer into a Notes app and save as .json.
+4. In the Learning Loop app: Create tab -> "Import many (file)" -> choose the file -> look at the summary -> tick the box -> Start import.
+5. Try 10 questions first. Then do the rest in files of up to 500 questions each.
+
+----- COPY FROM HERE -----
+Convert my questions into the JSON format below. Rules:
+- Return ONLY valid JSON (double quotes, no comments, no trailing commas). No explanations, no markdown, no extra words.
+- One item per question. Do not change the meaning of any question or option. Keep the original language (Hindi stays Hindi, English stays English).
+- Put at most 500 questions in one file. If there are more, finish the file, then say "NEXT PART" and wait for me to ask for the next one.
+- "options": 2 to 8 options. Do NOT write "A)", "1." or "(a)" in front of the option text.
+- "answer": the letter of the right option ("A", "B", "C", "D"...).
+- "explanation": REQUIRED for every question. If my text has none, write a short correct explanation in the same language.
+- "difficulty": "easy", "medium" or "hard".
+- "topic": what the questions teach, in your own words, 2-80 characters (e.g. "Indian Polity - Fundamental Rights"). You can also set a different "topic" on single items.
+- "language": "hi" for Hindi or "en" for English (default for all items; an item can have its own "language").
+- Plain text only: no HTML, no images, no formulas as pictures.
+
+FORMAT:
+{
+  "version": 1,
+  "language": "hi",
+  "topic": "Topic of these questions",
+  "items": [
+    {
+      "q": "Question text here",
+      "options": ["First option", "Second option", "Third option", "Fourth option"],
+      "answer": "B",
+      "explanation": "Why B is correct.",
+      "difficulty": "medium"
+    },
+    {
+      "q": "Next question text",
+      "options": ["...", "...", "...", "..."],
+      "answer": "D",
+      "explanation": "...",
+      "difficulty": "easy",
+      "topic": "Optional different topic for this question"
+    }
+  ]
+}
+----- COPY UNTIL HERE -----
+
+IF THE APP SAYS SOMETHING IS WRONG
+- "not valid JSON": the AI added extra words or missed a quote/comma. Tell it: "Return only valid JSON."
+- "Item 12: answer does not match any option": that question's answer letter is wrong. Fix it or ask the AI to correct item 12.
+- "You reached your posting limit": wait a while, then import the same file again and type the item number the app showed in "Start from item number".
+- Limits: max 5000 questions and 5 MB per file. Your account (trusted creator) can import about 1000 posts per hour.
+
+OTHER KINDS OF POSTS (optional, ask the AI to use these only if you want them)
+- Flashcard item:   {"kind":"flashcard","title":"Short title","topic":"Topic","body":{"front":"Question side","back":"Answer side"}}
+- True/False item:  {"kind":"question","title":"Short title","body":{"type":"true_false","prompt":"Statement"},"answer":{"value":true},"explanation":"Why"}
+- Fill-in-blank:    {"kind":"question","title":"Short title","body":{"type":"fill_blank","prompt":"The capital of Rajasthan is ______."},"answer":{"accepted":["Jaipur"]},"explanation":"Why"}
+- Short note:       {"kind":"note","title":"Short title","topic":"Topic","body":{"blocks":[{"type":"paragraph","text":"Text of the note"}]}}

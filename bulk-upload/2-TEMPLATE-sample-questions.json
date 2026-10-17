@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "language": "hi",
+  "topic": "सामान्य ज्ञान",
+  "items": [
+    {
+      "q": "भारत की राजधानी क्या है?",
+      "options": ["मुंबई", "नई दिल्ली", "कोलकाता", "चेन्नई"],
+      "answer": "B",
+      "explanation": "भारत की राजधानी नई दिल्ली है।",
+      "difficulty": "easy"
+    },
+    {
+      "q": "राजस्थान की राजधानी कौन-सी है?",
+      "options": ["जोधपुर", "उदयपुर", "जयपुर", "अजमेर"],
+      "answer": "C",
+      "explanation": "जयपुर, जिसे गुलाबी नगरी कहा जाता है, राजस्थान की राजधानी है।",
+      "difficulty": "easy",
+      "topic": "राजस्थान सामान्य ज्ञान"
+    },
+    {
+      "q": "Which unit measures electrical resistance?",
+      "options": ["Volt", "Ohm", "Watt", "Ampere"],
+      "answer": "B",
+      "explanation": "Resistance is measured in ohms.",
+      "difficulty": "medium",
+      "language": "en",
+      "topic": "Electricity"
+    }
+  ]
+}
