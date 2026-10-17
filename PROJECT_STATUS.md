@@ -95,6 +95,13 @@ Layout on small/large phones and notches, nested scrolling inside the paged feed
 - Batch ranking marks a whole batch as seen when it is fetched (pre-existing); learning-state changes therefore reach the _next_ batch (~3 cards later), not the already-fetched ones.
 - Email-confirmation projects show a "check your email" state; with `site_url=localhost` that link will not work from a phone.
 
+## Logo, launch reels and APK pipeline — 2026-10-17
+
+- **Logo** (owner's `images/3.webp`) applied: icon, adaptive foreground/monochrome, splash, favicon, sign-in screen (white backgrounds). TEST-VERIFIED ONLY (typecheck/lint); not seen on a device.
+- **Video upload path** (migration `20260102000007`, `finalize_my_video`): a creator uploads to their own prefix, registers a pending row, and `create-content` (kind `video`) verifies the stored file (exists, same size/type, own prefix, not reused) before publishing; clients still cannot mark media ready. 3 new tests (166 database tests). Mobile `VideoCard` playback is unchanged and **not device-verified**.
+- **Launch reels**: 5 Hindi mp4s catalogued in `content/launch-videos.json` (files kept out of the public repo), migration `20260102000008` adds curriculum labels (RBI/banking, static GK, train speed), `scripts/import-videos.mjs` imports as the owner. **Not imported yet** (hosted project still lacks migrations 6–8; needs the owner's Mac run). Rights of the "Target Classes"/PYQ reels need the owner's confirmation.
+- **APK**: `.github/workflows/android-apk.yml` (GitHub-hosted build + Release). See `docs/LAUNCH.md`.
+
 ## Launch readiness — 2026-10-13 (target: public launch 19 Oct)
 
 Owner decisions: Android app file for testers → public launch; creator upload for the owner and other users; email confirmation off for now. Full gate table and the owner's to-do list: **`docs/LAUNCH.md`**.
