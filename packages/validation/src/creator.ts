@@ -1,14 +1,15 @@
 import { z } from 'zod';
 import { isSupportedLocale, type Locale } from '@learning-loop/shared';
-import { flashcardBody, noteBody, questionBody } from './content.ts';
+import { flashcardBody, noteBody, questionBody, videoBody } from './content.ts';
 import { toClientQuestion } from './grading.ts';
 
 /**
  * What an ordinary creator may submit from the app. Deliberately a SUBSET of the content schemas: text-only notes,
- * flashcards and four simple question types. No media (uploads/finalising are not built), no tables, no cross-links.
+ * flashcards and four simple question types, plus one uploaded mp4 video (registered via the media pipeline; the database
+ * verifies the upload). No images in text, no tables, no cross-links.
  * The same schemas the renderer and grader use validate it, so anything accepted here can be shown and graded.
  */
-export const CREATOR_KINDS = ['note', 'flashcard', 'question'] as const;
+export const CREATOR_KINDS = ['note', 'flashcard', 'question', 'video'] as const;
 export const CREATOR_NOTE_BLOCKS = [
   'heading',
   'paragraph',
@@ -44,10 +45,12 @@ export interface CreatorContent {
   language: Locale;
   conceptId: string;
   difficulty: number;
-  format: 'note' | 'flashcard' | 'question';
+  format: 'note' | 'flashcard' | 'question' | 'video';
   hook: 'curiosity' | 'speed' | 'challenge';
   /** the PUBLIC body (for questions: no answer, no explanation) */
   body: Record<string, unknown>;
+  /** videos only: the pending upload to finalise and attach */
+  mediaId?: string;
   /** questions only */
   key?: { answer: unknown; explanation: string };
 }
@@ -98,6 +101,22 @@ export function parseCreatorSubmission(input: unknown): CreatorResult {
     return {
       ok: true,
       value: { ...base, kind: 'flashcard', format: 'flashcard', hook: 'speed', body: f.data },
+    };
+  }
+  if (s.kind === 'video') {
+    const v = videoBody.safeParse(s.body);
+    if (!v.success) return bad('invalid_video', v.error.issues[0]?.path.join('.'));
+    if (v.data.posterMediaId || v.data.captionsMediaId) return bad('media_not_allowed');
+    return {
+      ok: true,
+      value: {
+        ...base,
+        kind: 'video',
+        format: 'video',
+        hook: 'curiosity',
+        body: v.data,
+        mediaId: v.data.mediaId,
+      },
     };
   }
   // question: validate the FULL shape (the same one the grader parses), then split public body from key

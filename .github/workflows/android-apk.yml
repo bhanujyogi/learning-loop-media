@@ -1,0 +1,102 @@
+name: Android APK
+# Builds a signed release APK for direct download (no Play Store). Free GitHub runners already include the Android SDK.
+# Signing key: set the repository secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS to use your own;
+# otherwise a key is generated on the first run and kept in the Actions cache (fine for testing; see docs/LAUNCH.md).
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/lucid-lovelace-gkvaue, main]
+    paths: ['.github/workflows/android-apk.yml', 'apps/mobile/**', 'packages/**']
+permissions: { contents: write }
+concurrency: { group: android-apk, cancel-in-progress: true }
+env:
+  EXPO_PUBLIC_SUPABASE_URL: https://qwgsabpiqexfhndojckv.supabase.co
+  EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_8HcTMhwPlOHYbVU19s7CFw_Z-DZ_wMi
+  CI: '1'
+  EXPO_OFFLINE: '1'
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/check-release.mjs
+      - name: Signing key
+        id: key
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/ks"
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/ks/release.jks"
+            echo "pass=$KS_PASS" >> "$GITHUB_OUTPUT"; echo "alias=$KS_ALIAS" >> "$GITHUB_OUTPUT"; echo "own=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "own=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Restore generated key (when no secrets)
+        if: steps.key.outputs.own == 'false'
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ks
+          key: learning-loop-android-key-v1
+      - name: Generate key on first run (when no secrets)
+        if: steps.key.outputs.own == 'false'
+        run: |
+          if [ ! -f "$RUNNER_TEMP/ks/release.jks" ]; then
+            P=$(openssl rand -hex 16)
+            keytool -genkeypair -v -keystore "$RUNNER_TEMP/ks/release.jks" -storepass "$P" -keypass "$P" -alias learningloop \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Learning Loop, O=LEARNING LOOP, C=IN"
+            echo "$P" > "$RUNNER_TEMP/ks/pass.txt"
+          fi
+          echo "::add-mask::$(cat "$RUNNER_TEMP/ks/pass.txt")"
+      - name: Prebuild native project
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform android --no-install
+      - name: Wire release signing (Gradle init script)
+        env:
+          OWN: ${{ steps.key.outputs.own }}
+          OWN_PASS: ${{ steps.key.outputs.pass }}
+          OWN_ALIAS: ${{ steps.key.outputs.alias }}
+        run: |
+          if [ "$OWN" = true ]; then PASS="$OWN_PASS"; ALIAS="$OWN_ALIAS"; else PASS=$(cat "$RUNNER_TEMP/ks/pass.txt"); ALIAS=learningloop; fi
+          echo "::add-mask::$PASS"
+          mkdir -p ~/.gradle/init.d
+          cat > ~/.gradle/init.d/sign.gradle <<EOF
+          allprojects {
+            afterEvaluate { p ->
+              if (p.path == ':app' && p.extensions.findByName('android')) {
+                p.android.signingConfigs {
+                  ll { storeFile file('$RUNNER_TEMP/ks/release.jks'); storePassword '$PASS'; keyAlias '$ALIAS'; keyPassword '$PASS' }
+                }
+                p.android.buildTypes.release.signingConfig = p.android.signingConfigs.ll
+              }
+            }
+          }
+          EOF
+      - name: Build release APK
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64
+      - name: Verify signature and name the file
+        run: |
+          APK=$(ls apps/mobile/android/app/build/outputs/apk/release/*.apk | head -1)
+          "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "$APK" | head -3
+          cp "$APK" learning-loop.apk
+          ls -la learning-loop.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: learning-loop-apk, path: learning-loop.apk }
+      - name: Publish as a GitHub Release (public download link)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: Learning Loop test build ${{ github.run_number }}
+          body: Android test build (signed APK). Download `learning-loop.apk`, open it on your phone and allow "install unknown apps" for your browser.
+          prerelease: true
+          files: learning-loop.apk

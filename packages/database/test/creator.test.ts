@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   completeOnboarding,
   createContent,
+  asUser,
   DomainFailure,
   getFeed,
   submitAnswer,
@@ -234,5 +235,95 @@ describe('creator upload service', () => {
     const e = await fails(createContent(server, creator, note()));
     expect(e).not.toBeNull();
     expect(await count()).toBe(0);
+  });
+  describe('video upload', () => {
+    const SIZE = 3_146_625;
+    const upload = async (owner: string, over: { stored?: boolean; size?: number } = {}) => {
+      const key = `${owner}/${crypto.randomUUID()}.mp4`;
+      if (over.stored !== false)
+        await db.query(
+          `insert into storage.objects(bucket_id, name, owner, metadata) values ('media', $1, $2, $3::jsonb)`,
+          [key, owner, JSON.stringify({ size: over.size ?? SIZE, mimetype: 'video/mp4' })],
+        );
+      const r = await db.query<{ id: string }>(
+        `insert into media_assets(owner_user_id, bucket, storage_key, mime_type, size_bytes) values ($1,'media',$2,'video/mp4',$3) returning id`,
+        [owner, key, SIZE],
+      );
+      return r.rows[0]!.id;
+    };
+    const video = (mediaId: string, over: object = {}) => ({
+      kind: 'video',
+      title: 'Banking revision reel',
+      language: 'hi',
+      conceptId: OHM,
+      body: { mediaId, durationMs: 45_000 },
+      ...over,
+    });
+
+    it('a registered upload is finalised, attached and published (visible after approval)', async () => {
+      const mediaId = await upload(creator);
+      const r = await createContent(asCaller, creator, video(mediaId));
+      expect(r.moderation).toBe('pending_review');
+      const m = await db.query<{ status: string; content_id: string }>(
+        `select status, content_id from media_assets where id = $1`,
+        [mediaId],
+      );
+      expect(m.rows[0]).toMatchObject({ status: 'ready', content_id: r.contentId });
+      const live = await createContent(asCaller, trusted, video(await upload(trusted)));
+      expect(live.moderation).toBe('cleared');
+      const seen = new Map<string, unknown>();
+      for (let i = 0; i < 6; i++)
+        for (const it of (
+          await getFeed(server, { userId: viewer, limit: 30, now: T0 + i, seed: i })
+        ).items)
+          seen.set(it.contentId, it);
+      expect(seen.has(live.contentId)).toBe(true); // the trusted creator's video reaches other learners
+      expect(seen.has(r.contentId)).toBe(false); // the other waits for a moderator
+    });
+
+    it("rejects a missing file, a size mismatch, someone else's upload and reuse; nothing is left behind", async () => {
+      const before = await count();
+      const missing = await upload(creator, { stored: false });
+      expect((await fails(createContent(asCaller, creator, video(missing))))?.code).toBe(
+        'invalid_input',
+      );
+      const wrong = await upload(creator, { size: SIZE + 1 });
+      expect((await fails(createContent(asCaller, creator, video(wrong))))?.code).toBe(
+        'invalid_input',
+      );
+      const theirs = await upload(viewer);
+      expect((await fails(createContent(asCaller, creator, video(theirs))))?.code).toBe(
+        'forbidden',
+      );
+      expect(await count()).toBe(before);
+      const ok = await upload(creator);
+      await createContent(asCaller, creator, video(ok));
+      expect((await fails(createContent(asCaller, creator, video(ok))))?.code).toBe(
+        'invalid_input',
+      );
+    });
+
+    it('a client cannot mark its own media ready or call the finaliser for content it does not own', async () => {
+      const mediaId = await upload(creator);
+      const asC = serviceSql(db, 'authenticated');
+      const forged = await fails(
+        asUser(asC, creator, (tx) =>
+          tx.query(`update media_assets set status = 'ready' where id = $1`, [mediaId]),
+        ),
+      );
+      expect(forged).toBeNull(); // RLS has no update policy: zero rows touched, not an error
+      const st = await db.query<{ status: string }>(
+        `select status from media_assets where id = $1`,
+        [mediaId],
+      );
+      expect(st.rows[0]!.status).toBe('pending');
+      const other = await createContent(asCaller, viewer, note());
+      const e = await fails(
+        asUser(asC, creator, (tx) =>
+          tx.query(`select finalize_my_video($1, $2)`, [mediaId, other.contentId]),
+        ),
+      );
+      expect(e).not.toBeNull();
+    });
   });
 });

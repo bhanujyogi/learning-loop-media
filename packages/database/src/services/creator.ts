@@ -49,6 +49,8 @@ export async function createContent(
         `insert into content_concepts(content_id, concept_id, role) values ($1, $2, $3)`,
         [id, c.conceptId, c.kind === 'question' ? 'assesses' : 'primary'],
       );
+      // the upload must be finalised BEFORE publishing so an unavailable video can never go live
+      if (c.mediaId) await tx.query(`select finalize_my_video($1, $2)`, [c.mediaId, id]);
       await tx.query(`select publish_content($1)`, [id]);
       const m = await tx.query<{ moderation: string }>(
         `select moderation::text from content_items where id = $1`,
@@ -60,6 +62,8 @@ export async function createContent(
     if (e instanceof DomainFailure) throw e;
     const code = (e as { code?: string }).code;
     if (code === '54000') throw new DomainFailure('rate_limited', 'too many uploads');
+    if (code === '22023')
+      throw new DomainFailure('invalid_input', (e as Error).message.split(':')[0]!);
     if (code === '42501') throw new DomainFailure('forbidden', 'uploads not allowed');
     throw e;
   }

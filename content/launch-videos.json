@@ -1,0 +1,40 @@
+{
+  "note": "Hindi reels supplied by the owner. The mp4 files are NOT in the repository (rights unconfirmed, repo is public): keep them in a local folder and pass it to scripts/import-videos.mjs.",
+  "videos": [
+    {
+      "file": "01_Banking_PYQ_Quiz_Target_Classes.mp4",
+      "title": "बैंकिंग PYQ क्विज़ — 10 सवाल",
+      "conceptId": "50000000-0000-0000-0000-000000000101",
+      "durationMs": 98500,
+      "difficulty": "medium"
+    },
+    {
+      "file": "02_SSC_CPO_PYQ_Quiz_Target_Classes.mp4",
+      "title": "SSC CPO PYQ क्विज़ — 10 सवाल",
+      "conceptId": "50000000-0000-0000-0000-000000000102",
+      "durationMs": 98500,
+      "difficulty": "medium"
+    },
+    {
+      "file": "01_Revision_RBI_Tools_Banking.mp4",
+      "title": "RBI के टूल्स — रिवीज़न",
+      "conceptId": "50000000-0000-0000-0000-000000000101",
+      "durationMs": 49400,
+      "difficulty": "easy"
+    },
+    {
+      "file": "02_Revision_Percentage_Fraction_Trick.mp4",
+      "title": "प्रतिशत–भिन्न ट्रिक — रिवीज़न",
+      "conceptId": "50000000-0000-0000-0000-000000000001",
+      "durationMs": 48400,
+      "difficulty": "easy"
+    },
+    {
+      "file": "03_Revision_Train_Speed_Distance_Railway.mp4",
+      "title": "ट्रेन: गति और दूरी — रिवीज़न",
+      "conceptId": "50000000-0000-0000-0000-000000000103",
+      "durationMs": 67900,
+      "difficulty": "medium"
+    }
+  ]
+}
