@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -9,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import logoMark from '../../assets/logo-mark.png';
 import { useI18n } from '../i18n/I18nProvider';
 import {
   authErrorKey,
@@ -90,19 +92,13 @@ export default function SignIn() {
         >
           <LanguageSwitch />
           <Animated.View entering={enter()} style={{ gap: space.sm }}>
-            <View
-              accessibilityElementsHidden
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: radius.lg,
-                backgroundColor: colors.primary,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Text style={{ fontSize: 34 }}>🔁</Text>
-            </View>
+            <Image
+              accessibilityIgnoresInvertColors
+              accessible={false}
+              source={logoMark}
+              style={{ width: 88, height: 74 }}
+              resizeMode="contain"
+            />
             <Text variant="display" accessibilityRole="header">
               Learning Loop
             </Text>
