@@ -17,6 +17,7 @@ import {
   type FormError,
   type QuestionType,
 } from '../../lib/creator-form';
+import { pickVideo, uploadVideo } from '../../lib/video-upload';
 import { space } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { LanguageSwitch } from '../../ui/LanguageSwitch';
@@ -24,7 +25,7 @@ import { Animated, enter } from '../../ui/motion';
 import { Button, ChoiceCard, Chip, Field, Text } from '../../ui/primitives';
 import { ScreenHeader, useGoBack } from '../../ui/ScreenHeader';
 
-const KINDS: CreatorKind[] = ['note', 'flashcard', 'question'];
+const KINDS: CreatorKind[] = ['note', 'flashcard', 'question', 'video'];
 const QTYPES: QuestionType[] = ['single_choice', 'true_false', 'fill_blank', 'numerical'];
 const LEVELS: Difficulty[] = ['easy', 'medium', 'hard'];
 
@@ -58,7 +59,12 @@ export default function NewPost() {
     setBusy(true);
     setError(null);
     try {
-      const r = await api.createContent(built.payload);
+      let payload = built.payload;
+      if (f.kind === 'video' && f.video && session) {
+        const up = await uploadVideo(f.video, session.user.id);
+        payload = { ...payload, body: { mediaId: up.mediaId, durationMs: up.durationMs } };
+      }
+      const r = await api.createContent(payload);
       void qc.invalidateQueries({ queryKey: ['my-posts', session?.user.id] });
       setDone(r.moderation === 'cleared' ? 'live' : 'pending');
     } catch (e) {
@@ -184,6 +190,29 @@ export default function NewPost() {
               <Text variant="caption" muted>
                 {t('create.field.noteHelp')}
               </Text>
+            </View>
+          ) : null}
+
+          {f.kind === 'video' ? (
+            <View style={{ gap: space.sm }}>
+              <Button
+                variant="secondary"
+                label={f.video ? t('create.video.change') : t('create.video.pick')}
+                onPress={() => void pickVideo().then((video) => video && set({ video }))}
+              />
+              {f.video ? (
+                <Text variant="caption" muted>
+                  {f.video.name} · {(f.video.size / 1048576).toFixed(1)} MB
+                </Text>
+              ) : null}
+              <Text variant="caption" muted>
+                {t('create.video.help')}
+              </Text>
+              {msg('video') || msg('videoType') || msg('videoSize') ? (
+                <Text accessibilityRole="alert" variant="caption" style={{ color: colors.danger }}>
+                  {msg('video') ?? msg('videoType') ?? msg('videoSize')}
+                </Text>
+              ) : null}
             </View>
           ) : null}
 

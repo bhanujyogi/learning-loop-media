@@ -102,6 +102,10 @@ Layout on small/large phones and notches, nested scrolling inside the paged feed
 - **Launch reels**: 5 Hindi mp4s catalogued in `content/launch-videos.json` (files kept out of the public repo), migration `20260102000008` adds curriculum labels (RBI/banking, static GK, train speed), `scripts/import-videos.mjs` imports as the owner. **Not imported yet** (hosted project still lacks migrations 6–8; needs the owner's Mac run). Rights of the "Target Classes"/PYQ reels need the owner's confirmation.
 - **APK**: `.github/workflows/android-apk.yml` (GitHub-hosted build + Release). See `docs/LAUNCH.md`.
 
+### Hosted project updated — 2026-10-17 (via the Supabase connector)
+
+Migrations 6–8 applied; all five functions redeployed (bundles import a pinned commit from the public GitHub repo; record the commit when redeploying). Root causes found in the logs: `create-content` was never deployed (every post → 404 "Could not post"), and the Edge DB adapter double-encoded JSON params (feed 500; creator posts would have been stored as strings) — fixed in `_shared/runtime.ts`. One hosted account (the owner's) is a trusted creator. In-app video upload added. Still unverified: any call to the deployed functions from a real phone (sandbox cannot reach the project host).
+
 ## Launch readiness — 2026-10-13 (target: public launch 19 Oct)
 
 Owner decisions: Android app file for testers → public launch; creator upload for the owner and other users; email confirmation off for now. Full gate table and the owner's to-do list: **`docs/LAUNCH.md`**.

@@ -113,6 +113,30 @@ describe('what is reported missing', () => {
   });
 });
 
+describe('video posts', () => {
+  const MEDIA = '60000000-0000-4000-8000-000000000001';
+  const clip = { uri: 'file:///c/a.mp4', name: 'a.mp4', size: 3_000_000, mimeType: 'video/mp4' };
+  it('needs a chosen mp4 within the size limit', () => {
+    const none = buildSubmission(base({ kind: 'video' }));
+    expect(none.ok === false && none.errors).toContain('video');
+    const wrongType = buildSubmission(
+      base({ kind: 'video', video: { ...clip, mimeType: 'video/quicktime' } }),
+    );
+    expect(wrongType.ok === false && wrongType.errors).toContain('videoType');
+    const big = buildSubmission(base({ kind: 'video', video: { ...clip, size: 61 * 1048576 } }));
+    expect(big.ok === false && big.errors).toContain('videoSize');
+  });
+  it('completed with the uploaded media id, it passes the SERVER validator', () => {
+    const r = buildSubmission(base({ kind: 'video', video: clip }));
+    if (!r.ok) throw new Error('rejected');
+    const v = parseCreatorSubmission({
+      ...r.payload,
+      body: { mediaId: MEDIA, durationMs: 45_000 },
+    });
+    expect(v.ok && v.value.mediaId).toBe(MEDIA);
+  });
+});
+
 describe('post status shown to the creator', () => {
   it('maps publishing + moderation to what the creator should be told', () => {
     expect(postStatus({ publishing: 'published', moderation: 'pending_review' })).toBe('pending');

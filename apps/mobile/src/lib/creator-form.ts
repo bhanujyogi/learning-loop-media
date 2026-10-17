@@ -1,6 +1,25 @@
 import type { Locale } from '@learning-loop/shared';
 
-export type CreatorKind = 'note' | 'flashcard' | 'question';
+export type CreatorKind = 'note' | 'flashcard' | 'question' | 'video';
+
+/** A video the creator picked on their phone (uploaded only when they press Post). */
+export interface PickedVideo {
+  uri: string;
+  name: string;
+  size: number;
+  mimeType: string;
+}
+export const MAX_VIDEO_BYTES = 60 * 1024 * 1024;
+export const videoProblem = (
+  v: PickedVideo | undefined,
+): 'video' | 'videoType' | 'videoSize' | null =>
+  !v
+    ? 'video'
+    : v.mimeType !== 'video/mp4'
+      ? 'videoType'
+      : v.size > MAX_VIDEO_BYTES || v.size <= 0
+        ? 'videoSize'
+        : null;
 export type QuestionType = 'single_choice' | 'true_false' | 'fill_blank' | 'numerical';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
@@ -24,6 +43,7 @@ export interface CreatorForm {
   tolerance: string;
   explanation: string;
   confirmed: boolean;
+  video?: PickedVideo;
 }
 export const MIN_OPTIONS = 2;
 export const MAX_OPTIONS = 6;
@@ -61,6 +81,9 @@ export type FormError =
   | 'accepted'
   | 'num'
   | 'explanation'
+  | 'video'
+  | 'videoType'
+  | 'videoSize'
   | 'confirm';
 
 const ids = 'abcdefghijklmnop';
@@ -111,6 +134,13 @@ export function buildSubmission(
     return errors.length
       ? { ok: false, errors }
       : { ok: true, payload: { ...head, body: { front: f.front.trim(), back: f.back.trim() } } };
+  }
+
+  if (f.kind === 'video') {
+    const v = videoProblem(f.video);
+    if (v) errors.push(v);
+    // the body needs the id of the uploaded file, so the screen completes it after the upload (see lib/video-upload.ts)
+    return errors.length ? { ok: false, errors } : { ok: true, payload: { ...head, body: {} } };
   }
 
   // question
