@@ -1,6 +1,26 @@
 import type { Locale } from '@learning-loop/shared';
 
-export type CreatorKind = 'note' | 'flashcard' | 'question' | 'video';
+export type CreatorKind = 'note' | 'flashcard' | 'question' | 'image' | 'video';
+
+/** An image the creator picked (uploaded only when they press Post). Same shape as `PickedFile` in lib/upload.ts. */
+export interface PickedImage {
+  uri: string;
+  name: string;
+  size: number;
+  mimeType: string;
+}
+export const MAX_IMAGES = 10;
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // keep equal to lib/upload.ts (that file imports native modules, this one stays pure)
+const IMAGE_MIME = ['image/jpeg', 'image/png', 'image/webp'];
+/** Why a picked image can't be used (null = fine). Mirrors `imageProblem` in lib/upload.ts. */
+export const imageFileProblem = (f: PickedImage): 'type' | 'size' | null =>
+  !IMAGE_MIME.includes(f.mimeType)
+    ? 'type'
+    : f.size <= 0 || f.size > MAX_IMAGE_BYTES
+      ? 'size'
+      : null;
+export const MIN_TOPIC = 2;
+export const MAX_TOPIC = 80;
 
 /** A video the creator picked on their phone (uploaded only when they press Post). */
 export interface PickedVideo {
@@ -27,6 +47,9 @@ export interface CreatorForm {
   kind: CreatorKind;
   title: string;
   language: Locale;
+  /** free-text "what does it teach" (2–80 characters) */
+  topic: string;
+  /** set only when the creator tapped a curriculum suggestion; typing anything else clears it */
   conceptId?: string;
   difficulty: Difficulty;
   noteText: string;
@@ -44,6 +67,8 @@ export interface CreatorForm {
   explanation: string;
   confirmed: boolean;
   video?: PickedVideo;
+  images: PickedImage[];
+  caption: string;
 }
 export const MIN_OPTIONS = 2;
 export const MAX_OPTIONS = 6;
@@ -52,6 +77,7 @@ export const emptyForm = (language: Locale, kind: CreatorKind = 'note'): Creator
   kind,
   title: '',
   language,
+  topic: '',
   difficulty: 'medium',
   noteText: '',
   front: '',
@@ -66,11 +92,13 @@ export const emptyForm = (language: Locale, kind: CreatorKind = 'note'): Creator
   tolerance: '',
   explanation: '',
   confirmed: false,
+  images: [],
+  caption: '',
 });
 
 export type FormError =
   | 'title'
-  | 'concept'
+  | 'topic'
   | 'noteText'
   | 'front'
   | 'back'
@@ -84,6 +112,9 @@ export type FormError =
   | 'video'
   | 'videoType'
   | 'videoSize'
+  | 'images'
+  | 'imageType'
+  | 'imageSize'
   | 'confirm';
 
 const ids = 'abcdefghijklmnop';
@@ -111,15 +142,17 @@ export function buildSubmission(
 ): { ok: true; payload: Record<string, unknown> } | { ok: false; errors: FormError[] } {
   const errors: FormError[] = [];
   if (f.title.trim().length < 3) errors.push('title');
-  if (!f.conceptId) errors.push('concept');
+  const topic = f.topic.trim();
+  if (topic.length < MIN_TOPIC || topic.length > MAX_TOPIC) errors.push('topic');
   if (!f.confirmed) errors.push('confirm');
-  const head = {
+  const head: Record<string, unknown> = {
     kind: f.kind,
     title: f.title.trim(),
     language: f.language,
-    conceptId: f.conceptId,
+    topic,
     difficulty: f.difficulty,
   };
+  if (f.conceptId) head.conceptId = f.conceptId;
 
   if (f.kind === 'note') {
     const blocks = noteBlocks(f.noteText);
@@ -141,6 +174,17 @@ export function buildSubmission(
     if (v) errors.push(v);
     // the body needs the id of the uploaded file, so the screen completes it after the upload (see lib/video-upload.ts)
     return errors.length ? { ok: false, errors } : { ok: true, payload: { ...head, body: {} } };
+  }
+
+  if (f.kind === 'image') {
+    if (!f.images.length || f.images.length > MAX_IMAGES) errors.push('images');
+    else if (f.images.some((i) => imageFileProblem(i) === 'type')) errors.push('imageType');
+    else if (f.images.some((i) => imageFileProblem(i) === 'size')) errors.push('imageSize');
+    const caption = f.caption.trim();
+    // the body needs the ids of the uploaded files, so the screen adds `mediaIds` after the uploads (see lib/upload.ts)
+    return errors.length
+      ? { ok: false, errors }
+      : { ok: true, payload: { ...head, body: caption ? { caption } : {} } };
   }
 
   // question

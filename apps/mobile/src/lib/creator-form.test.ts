@@ -12,7 +12,7 @@ const CONCEPT = '50000000-0000-0000-0000-000000000004';
 const base = (over: Partial<CreatorForm>): CreatorForm => ({
   ...emptyForm('en'),
   title: 'A decent title',
-  conceptId: CONCEPT,
+  topic: 'Ohm’s law',
   confirmed: true,
   ...over,
 });
@@ -73,13 +73,17 @@ describe('what is reported missing', () => {
     const r = buildSubmission(emptyForm('en'));
     expect(r).toMatchObject({ ok: false });
     if (!r.ok)
-      expect(r.errors).toEqual(expect.arrayContaining(['title', 'concept', 'confirm', 'noteText']));
+      expect(r.errors).toEqual(expect.arrayContaining(['title', 'topic', 'confirm', 'noteText']));
   });
-  it('cannot post without confirming rights, a concept or a correct option', () => {
+  it('cannot post without confirming rights, a topic or a correct option', () => {
     const noConfirm = buildSubmission(base({ noteText: 'x', confirmed: false }));
     expect(noConfirm.ok === false && noConfirm.errors).toContain('confirm');
-    const noConcept = buildSubmission(base({ noteText: 'x', conceptId: undefined }));
-    expect(noConcept.ok === false && noConcept.errors).toContain('concept');
+    const noTopic = buildSubmission(base({ noteText: 'x', topic: '  ' }));
+    expect(noTopic.ok === false && noTopic.errors).toContain('topic');
+    const shortTopic = buildSubmission(base({ noteText: 'x', topic: 'a' }));
+    expect(shortTopic.ok === false && shortTopic.errors).toContain('topic');
+    const longTopic = buildSubmission(base({ noteText: 'x', topic: 'a'.repeat(81) }));
+    expect(longTopic.ok === false && longTopic.errors).toContain('topic');
     const mc = buildSubmission(
       base({ kind: 'question', prompt: 'p', explanation: 'e', options: ['a', 'b'], correct: null }),
     );
@@ -134,6 +138,70 @@ describe('video posts', () => {
       body: { mediaId: MEDIA, durationMs: 45_000 },
     });
     expect(v.ok && v.value.mediaIds?.[0]).toBe(MEDIA);
+  });
+});
+
+describe('topic', () => {
+  it('free text alone is enough; a picked concept is sent in addition', () => {
+    const free = buildSubmission(base({ noteText: 'x', topic: '  Kirchhoff laws ' }));
+    if (!free.ok) throw new Error('rejected');
+    expect(free.payload).toMatchObject({ topic: 'Kirchhoff laws' });
+    expect(free.payload).not.toHaveProperty('conceptId');
+    expect(parseCreatorSubmission(free.payload).ok).toBe(true);
+
+    const picked = buildSubmission(base({ noteText: 'x', conceptId: CONCEPT }));
+    if (!picked.ok) throw new Error('rejected');
+    expect(picked.payload).toMatchObject({ topic: 'Ohm’s law', conceptId: CONCEPT });
+    const v = parseCreatorSubmission(picked.payload);
+    expect(v.ok && v.value.conceptId).toBe(CONCEPT);
+  });
+  it('Hindi topics pass the server validator', () => {
+    expect(accepted(base({ language: 'hi', topic: 'ओम का नियम', noteText: 'V = IR' })).ok).toBe(true);
+  });
+});
+
+describe('image posts', () => {
+  const M1 = '70000000-0000-4000-8000-000000000001';
+  const M2 = '70000000-0000-4000-8000-000000000002';
+  const pic = (n: number) => ({
+    uri: `file:///c/${n}.jpg`,
+    name: `${n}.jpg`,
+    size: 400_000,
+    mimeType: 'image/jpeg',
+  });
+  it('needs 1 to 10 usable images', () => {
+    const none = buildSubmission(base({ kind: 'image' }));
+    expect(none.ok === false && none.errors).toContain('images');
+    const eleven = buildSubmission(
+      base({ kind: 'image', images: Array.from({ length: 11 }, (_, i) => pic(i)) }),
+    );
+    expect(eleven.ok === false && eleven.errors).toContain('images');
+    const gif = buildSubmission(
+      base({ kind: 'image', images: [{ ...pic(1), mimeType: 'image/gif' }] }),
+    );
+    expect(gif.ok === false && gif.errors).toContain('imageType');
+    const huge = buildSubmission(
+      base({ kind: 'image', images: [{ ...pic(1), size: 11 * 1048576 }] }),
+    );
+    expect(huge.ok === false && huge.errors).toContain('imageSize');
+  });
+  it('completed with the uploaded media ids (and caption) it passes the SERVER validator', () => {
+    const r = buildSubmission(
+      base({ kind: 'image', images: [pic(1), pic(2)], caption: '  Circuit diagram  ' }),
+    );
+    if (!r.ok) throw new Error('rejected');
+    expect(r.payload.body).toEqual({ caption: 'Circuit diagram' });
+    const v = parseCreatorSubmission({
+      ...r.payload,
+      body: { ...(r.payload.body as object), mediaIds: [M1, M2] },
+    });
+    expect(v.ok && v.value.mediaIds).toEqual([M1, M2]);
+    expect(v.ok && v.value.body).toMatchObject({ caption: 'Circuit diagram' });
+  });
+  it('the caption is optional', () => {
+    const r = buildSubmission(base({ kind: 'image', images: [pic(1)] }));
+    if (!r.ok) throw new Error('rejected');
+    expect(parseCreatorSubmission({ ...r.payload, body: { mediaIds: [M1] } }).ok).toBe(true);
   });
 });
 

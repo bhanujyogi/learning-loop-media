@@ -4,7 +4,15 @@ import { useI18n } from '../../i18n/I18nProvider';
 import { track } from '../../lib/event-queue';
 import { Button, Text } from '../../ui/primitives';
 import { InteractiveRenderer } from '../interactive/InteractiveRenderer';
-import { FlashcardCard, NotePreview, NoteView, VideoCard, type NoteBody } from './MediaCards';
+import {
+  FlashcardCard,
+  ImageCard,
+  NotePreview,
+  NoteView,
+  VideoCard,
+  type ImageBody,
+  type NoteBody,
+} from './MediaCards';
 import { QuestionCard } from './QuestionCard';
 import type { PublicQuestion } from './question-model';
 
@@ -25,6 +33,7 @@ export function ContentBody({
   active = true,
   preload = false,
   onNext,
+  onDoubleTap,
 }: {
   item: ContentLike;
   recommendationId?: string;
@@ -32,6 +41,8 @@ export function ContentBody({
   active?: boolean;
   preload?: boolean;
   onNext?: () => void;
+  /** double-tap on a picture (the feed and the viewer use it to like) */
+  onDoubleTap?: () => void;
 }) {
   const { t } = useI18n();
   const router = useRouter();
@@ -73,6 +84,15 @@ export function ContentBody({
       return <FlashcardCard contentId={item.contentId} body={body as never} />;
     case 'video':
       return <VideoCard body={body as never} active={active} preload={preload} />;
+    case 'image':
+      return (
+        <ImageCard
+          body={body as ImageBody}
+          active={active}
+          preload={preload}
+          onDoubleTap={onDoubleTap}
+        />
+      );
     case 'interactive': {
       const parsed = interactiveDefinition.safeParse(body);
       return parsed.success ? (

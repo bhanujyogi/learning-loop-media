@@ -227,7 +227,7 @@ export const hi: Record<MessageKey, string> = {
   'tabs.create': 'बनाएँ',
   'create.title': 'बनाएँ',
   'create.intro':
-    'दूसरे शिक्षार्थियों के साथ कोई नोट, फ़्लैशकार्ड या प्रश्न साझा करें। पोस्ट दूसरों को दिखने से पहले जाँची जाती हैं।',
+    'दूसरे शिक्षार्थियों के साथ कोई नोट, फ़्लैशकार्ड, प्रश्न, तस्वीर या वीडियो साझा करें। आपकी पोस्ट तुरंत लाइव हो जाती है।',
   'create.new': 'नई पोस्ट',
   'create.mine': 'मेरी पोस्ट',
   'create.mineEmpty': 'आपने अभी तक कुछ पोस्ट नहीं किया है।',
@@ -255,8 +255,9 @@ export const hi: Record<MessageKey, string> = {
   'create.field.kind': 'आप क्या पोस्ट करना चाहते हैं?',
   'create.field.title': 'शीर्षक',
   'create.field.language': 'आपकी पोस्ट की भाषा',
-  'create.field.concept': 'यह क्या सिखाती है?',
-  'create.field.conceptHelp': 'सबसे नज़दीकी कॉन्सेप्ट चुनें ताकि सही शिक्षार्थियों को यह दिखे।',
+  'create.field.concept': 'यह क्या सिखाती है? (कुछ भी लिखें)',
+  'create.field.conceptHelp':
+    'विषय अपने शब्दों में लिखें। पोस्ट को पाठ्यक्रम के किसी कॉन्सेप्ट से जोड़ने के लिए सुझाव पर टैप करें।',
   'create.field.difficulty': 'कठिनाई',
   'create.field.noteText': 'नोट का पाठ',
   'create.field.noteHelp':
@@ -282,7 +283,7 @@ export const hi: Record<MessageKey, string> = {
   'create.submit': 'पोस्ट करें',
   'create.submitting': 'पोस्ट हो रहा है…',
   'create.err.title': 'शीर्षक जोड़ें (कम से कम 3 अक्षर)।',
-  'create.err.concept': 'चुनें कि यह क्या सिखाती है।',
+  'create.err.topic': 'लिखें कि यह क्या सिखाती है (2 से 80 अक्षर)।',
   'create.err.noteText': 'अपने नोट के लिए कुछ पाठ लिखें।',
   'create.err.front': 'कार्ड का आगे का हिस्सा भरें।',
   'create.err.back': 'कार्ड का पीछे का हिस्सा भरें।',
@@ -294,7 +295,7 @@ export const hi: Record<MessageKey, string> = {
   'create.err.num': 'सही संख्या ठीक से लिखें।',
   'create.err.explanation': 'शिक्षार्थियों के काम की व्याख्या जोड़ें।',
   'create.err.confirm': 'कृपया ऊपर दिए कथन की पुष्टि करें।',
-  'create.done.pending': 'जमा हो गई! समीक्षा के बाद दूसरों को दिखेगी।',
+  'create.done.pending': 'पोस्ट हो गई! आपकी पोस्ट लाइव है।',
   'create.done.live': 'प्रकाशित! आपकी पोस्ट लाइव है।',
   'create.postErr.offline': 'आप ऑफ़लाइन हैं। दोबारा जुड़कर कोशिश करें।',
   'create.postErr.rate': 'आपने हाल में बहुत पोस्ट की हैं। कृपया बाद में कोशिश करें।',

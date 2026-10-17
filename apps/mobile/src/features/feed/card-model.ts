@@ -18,3 +18,7 @@ export const kindLabelKey = (kind: Kind, format?: string | null): MessageKey =>
 
 /** Position within a content list for the screen-reader label ("3 of 10"). */
 export const positionLabel = (index: number, total: number) => `${index + 1} / ${total}`;
+
+/** Label for a card/post pill. Image posts have their own label; everything else follows the kind. */
+export const typeLabelKey = (type: string, kind: Kind, format?: string | null): MessageKey =>
+  type === 'image' ? 'feed.card.kindImage' : kindLabelKey(kind, format);

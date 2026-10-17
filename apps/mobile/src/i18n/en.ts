@@ -240,7 +240,7 @@ export const en = {
   'tabs.create': 'Create',
   'create.title': 'Create',
   'create.intro':
-    'Share a note, flashcard or question with other learners. Posts are reviewed before others can see them.',
+    'Share a note, flashcard, question, image or video with other learners. Your post goes live right away.',
   'create.new': 'New post',
   'create.mine': 'My posts',
   'create.mineEmpty': 'You haven’t posted anything yet.',
@@ -268,8 +268,9 @@ export const en = {
   'create.field.kind': 'What do you want to post?',
   'create.field.title': 'Title',
   'create.field.language': 'Language of your post',
-  'create.field.concept': 'What does it teach?',
-  'create.field.conceptHelp': 'Pick the closest concept so the right learners see it.',
+  'create.field.concept': 'What does it teach? (type anything)',
+  'create.field.conceptHelp':
+    'Write the topic in your own words. Tap a suggestion to link your post to a syllabus concept.',
   'create.field.difficulty': 'Difficulty',
   'create.field.noteText': 'Note text',
   'create.field.noteHelp':
@@ -295,7 +296,7 @@ export const en = {
   'create.submit': 'Post',
   'create.submitting': 'Posting…',
   'create.err.title': 'Add a title (at least 3 characters).',
-  'create.err.concept': 'Choose what it teaches.',
+  'create.err.topic': 'Type what it teaches (2 to 80 characters).',
   'create.err.noteText': 'Write some text for your note.',
   'create.err.front': 'Fill in the front of the card.',
   'create.err.back': 'Fill in the back of the card.',
@@ -307,7 +308,7 @@ export const en = {
   'create.err.num': 'Enter a valid correct number.',
   'create.err.explanation': 'Add an explanation that helps learners.',
   'create.err.confirm': 'Please confirm the statement above.',
-  'create.done.pending': 'Submitted! Others will see it after it is reviewed.',
+  'create.done.pending': 'Posted! Your post is live.',
   'create.done.live': 'Published! Your post is live.',
   'create.postErr.offline': 'You’re offline. Reconnect and try again.',
   'create.postErr.rate': 'You’ve posted a lot recently. Please try again later.',
