@@ -1,10 +1,16 @@
 import * as Haptics from 'expo-haptics';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { TextInput, View } from 'react-native';
 import { useI18n } from '../../i18n/I18nProvider';
 import { answerCache } from '../../lib/answer-cache';
 import { api, ApiError, type SubmitAnswerResponse } from '../../lib/api';
 import { track } from '../../lib/event-queue';
+import {
+  findCorrectToken,
+  instantStates,
+  instantVerdict,
+  supportsInstant,
+} from '../../lib/instant-check';
 import { sessionStats } from '../../lib/session-stats';
 import { useReduceMotion } from '../../lib/use-reduce-motion';
 import { uuid } from '../../lib/uuid';
@@ -14,6 +20,7 @@ import { Animated, enter, usePop } from '../../ui/motion';
 import { Button, ChoiceCard, Pill, ProgressBar, Text } from '../../ui/primitives';
 import {
   activate,
+  answerInstantly,
   beginSubmit,
   failed,
   initFlow,
@@ -24,6 +31,7 @@ import {
   succeeded,
   takeHint,
   type Flow,
+  type SubmitRequest,
 } from './question-flow';
 import {
   describeCorrectAnswer,
@@ -34,6 +42,8 @@ import {
   type PublicQuestion,
 } from './question-model';
 
+const AUTO_RETRIES = 3;
+const RETRY_DELAYS_MS = [2_000, 5_000, 12_000];
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
 /**
@@ -47,6 +57,7 @@ export function QuestionCard({
   body,
   active = true,
   onNext,
+  instantCheck,
 }: {
   contentId: string;
   recommendationId?: string;
@@ -55,6 +66,8 @@ export function QuestionCard({
   active?: boolean;
   /** Scrolls the feed to the next card (shown after the answer, so the loop continues without hunting for a gesture). */
   onNext?: () => void;
+  /** single-choice / true-false: `{ salt, hash, explanation }` from the feed → instant local verdict (see lib/instant-check.ts). */
+  instantCheck?: unknown;
 }) {
   const { colors } = useTheme();
   const { t } = useI18n();
@@ -70,7 +83,23 @@ export function QuestionCard({
     setFlowState(f);
   };
   const [res, setRes] = useState<SubmitAnswerResponse | null>(cached?.result ?? null);
-  const pop = usePop(res?.attemptId);
+  const pop = usePop(flow.instant?.tapped ?? res?.attemptId);
+  const options = useMemo(
+    () =>
+      body.type === 'true_false'
+        ? [
+            { id: 'true', text: t('q.true') },
+            { id: 'false', text: t('q.false') },
+          ]
+        : (body.options ?? []),
+    [body.type, body.options, t],
+  );
+  const tokens = useMemo(() => options.map((o) => o.id), [options]);
+  // Instant mode only when the feed sent a check that matches exactly one option; anything else uses the server flow.
+  const instantOn = useMemo(
+    () => supportsInstant(body.type) && findCorrectToken(instantCheck, contentId, tokens) !== null,
+    [body.type, instantCheck, contentId, tokens],
+  );
   useEffect(() => {
     if (active) update(activate(flowRef.current, Date.now()));
   }, [active]);
@@ -85,31 +114,35 @@ export function QuestionCard({
   const isText = body.type === 'fill_blank' || body.type === 'numerical';
   const isOrdering = body.type === 'ordering';
   const toggle = (id: string) => update(select(flowRef.current, id, multi));
-  const options =
-    body.type === 'true_false'
-      ? [
-          { id: 'true', text: t('q.true') },
-          { id: 'false', text: t('q.false') },
-        ]
-      : (body.options ?? []);
   const choice = !isText && !isOrdering;
-  const states = res && choice ? optionStates(body.type, options, selected, res.correctAnswer) : {};
-  const verdict = res ? verdictOf(res) : null;
-  const rightText = res ? describeCorrectAnswer(body, res.correctAnswer) : null;
+  const instant = flow.instant;
+  const answered = !!res || !!instant;
+  const states =
+    res && choice
+      ? optionStates(body.type, options, selected, res.correctAnswer)
+      : instant
+        ? instantStates(tokens, instant)
+        : {};
+  const verdict = res
+    ? verdictOf(res)
+    : instant
+      ? instant.correct
+        ? 'correct'
+        : 'incorrect'
+      : null;
+  const rightText = res
+    ? describeCorrectAnswer(body, res.correctAnswer)
+    : instant && !instant.correct
+      ? (options.find((o) => o.id === instant.correctToken)?.text ?? null)
+      : null;
+  const explanation = res?.explanation ?? instant?.explanation ?? null;
 
-  const submit = async () => {
-    const begun = beginSubmit(flowRef.current, {
-      type: body.type,
-      ready: isReady(body, flowRef.current.selected, flowRef.current.text),
-      now: Date.now(),
-      newKey: uuid,
-    });
-    if (!begun) return; // already submitting / already graded / not ready: double taps are harmless
-    update(begun.state);
+  /** The server-graded submit. Same idempotency key on every retry, so the server replays instead of double counting. */
+  const send = async (request: SubmitRequest, attempt: number) => {
     try {
       const r = await api.submitAnswer({
         questionId: contentId,
-        ...begun.request,
+        ...request,
         recommendationId,
       });
       update(succeeded(flowRef.current));
@@ -120,7 +153,7 @@ export function QuestionCard({
         result: r,
       });
       if (!r.replayed) sessionStats.record({ correct: r.correct, xpAwarded: r.xp.awarded });
-      if (!reduceMotion)
+      if (!reduceMotion && !flowRef.current.instant)
         void Haptics.notificationAsync(
           r.correct
             ? Haptics.NotificationFeedbackType.Success
@@ -128,7 +161,53 @@ export function QuestionCard({
         );
     } catch (e) {
       update(failed(flowRef.current, e instanceof ApiError && e.isOffline));
+      // The instant verdict stays. Quietly retry a few times (same key); after that the learner gets a manual retry button.
+      if (flowRef.current.instant && attempt < AUTO_RETRIES)
+        setTimeout(() => resend(attempt + 1), RETRY_DELAYS_MS[attempt] ?? 10_000);
     }
+  };
+  const resend = (attempt: number) => {
+    const begun = beginSubmit(flowRef.current, {
+      type: body.type,
+      ready: true,
+      now: Date.now(),
+      newKey: uuid,
+    });
+    if (!begun) return;
+    update(begun.state);
+    void send(begun.request, attempt);
+  };
+
+  const submit = async () => {
+    const begun = beginSubmit(flowRef.current, {
+      type: body.type,
+      ready: isReady(body, flowRef.current.selected, flowRef.current.text),
+      now: Date.now(),
+      newKey: uuid,
+    });
+    if (!begun) return; // already submitting / already graded / not ready: double taps are harmless
+    update(begun.state);
+    await send(begun.request, 0);
+  };
+
+  /** Tap on a single-choice / true-false option: verdict and explanation now, grading in the background. */
+  const onChoice = (id: string) => {
+    const verdictNow = instantOn ? instantVerdict(instantCheck, contentId, tokens, id) : null;
+    if (!verdictNow) return toggle(id);
+    const begun = answerInstantly(flowRef.current, verdictNow, {
+      type: body.type,
+      now: Date.now(),
+      newKey: uuid,
+    });
+    if (!begun) return; // already answered: the choice cannot be changed
+    update(begun.state);
+    if (!reduceMotion)
+      void Haptics.notificationAsync(
+        verdictNow.correct
+          ? Haptics.NotificationFeedbackType.Success
+          : Haptics.NotificationFeedbackType.Warning,
+      );
+    void send(begun.request, 0);
   };
 
   const tone =
@@ -157,30 +236,31 @@ export function QuestionCard({
       {choice ? (
         <View style={{ gap: space.sm }}>
           {options.map((o, i) => {
-            const st = res
+            const st = answered
               ? (states[o.id] ?? 'idle')
               : selected.includes(o.id)
                 ? 'selected'
                 : 'idle';
             return (
-              <ChoiceCard
-                key={o.id}
-                role={multi ? 'checkbox' : 'radio'}
-                leading={body.type === 'true_false' ? undefined : LETTERS[i]}
-                label={o.text}
-                state={st}
-                stateLabel={
-                  st === 'correct'
-                    ? t('q.correct')
-                    : st === 'wrong'
-                      ? t('q.incorrect')
-                      : st === 'missed'
-                        ? t('q.correctAnswerIs')
-                        : undefined
-                }
-                disabled={!!res || busy}
-                onPress={() => toggle(o.id)}
-              />
+              <View key={o.id} style={{ opacity: instant && st === 'idle' ? 0.55 : 1 }}>
+                <ChoiceCard
+                  role={multi ? 'checkbox' : 'radio'}
+                  leading={body.type === 'true_false' ? undefined : LETTERS[i]}
+                  label={o.text}
+                  state={st}
+                  stateLabel={
+                    st === 'correct'
+                      ? t('q.correct')
+                      : st === 'wrong'
+                        ? t('q.incorrect')
+                        : st === 'missed'
+                          ? t('q.correctAnswerIs')
+                          : undefined
+                  }
+                  disabled={answered || busy}
+                  onPress={() => onChoice(o.id)}
+                />
+              </View>
             );
           })}
         </View>
@@ -254,7 +334,7 @@ export function QuestionCard({
         />
       ) : null}
 
-      {!res ? (
+      {!res && !instantOn ? (
         <Button
           label={busy ? t('q.checking') : t('q.check')}
           onPress={() => void submit()}
@@ -262,7 +342,7 @@ export function QuestionCard({
           disabled={!isReady(body, selected, text)}
         />
       ) : null}
-      {err ? (
+      {err && !instant ? (
         <Text
           accessibilityRole="alert"
           accessibilityLiveRegion="assertive"
@@ -272,7 +352,7 @@ export function QuestionCard({
         </Text>
       ) : null}
 
-      {res ? (
+      {res || instant ? (
         <Animated.View
           entering={enter()}
           accessibilityLiveRegion="polite"
@@ -303,57 +383,85 @@ export function QuestionCard({
               <Text variant="heading">{rightText}</Text>
             </View>
           ) : null}
-          {res.explanation ? (
+          {explanation ? (
             <View style={{ gap: 2 }}>
               <Text variant="caption" muted>
                 {t('q.why')}
               </Text>
-              <Text>{res.explanation}</Text>
+              <Text>{explanation}</Text>
             </View>
           ) : null}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
-            {res.xp.awarded > 0 ? (
-              <Pill
-                label={t('q.xp', { xp: res.xp.awarded })}
-                fg={colors.onPrimary}
-                bg={colors.primary}
+          {!res && busy ? (
+            <Text variant="caption" muted>
+              {t('feed.instant.saving')}
+            </Text>
+          ) : null}
+          {!res && !busy && err ? (
+            <View style={{ gap: space.sm }}>
+              <Text
+                accessibilityRole="alert"
+                accessibilityLiveRegion="assertive"
+                style={{ color: colors.danger }}
+              >
+                {err}
+              </Text>
+              <Text variant="caption" muted>
+                {t('feed.instant.notSaved')}
+              </Text>
+              <Button
+                variant="secondary"
+                label={t('feed.instant.retry')}
+                onPress={() => resend(0)}
               />
-            ) : null}
-            <Pill
-              label={t('q.level', { level: res.xp.level })}
-              fg={colors.text}
-              bg={colors.surfaceAlt}
-            />
-            {res.xp.leveledUp ? (
-              <Pill label={t('q.levelUp')} fg={colors.onPrimary} bg={colors.success} />
-            ) : null}
-          </View>
-          {res.replayed ? (
-            <Text variant="caption" muted>
-              {t('q.replayed')}
-            </Text>
-          ) : null}
-          {res.repeatAttempt ? (
-            <Text variant="caption" muted>
-              {t('q.repeat')}
-            </Text>
-          ) : null}
-          {res.mastery[0] ? (
-            <View style={{ gap: space.xs }}>
-              <Text variant="caption" muted>
-                {t('q.mastery')}
-              </Text>
-              <ProgressBar value={res.mastery[0].mastery} label={t('q.mastery')} height={10} />
-              <Text variant="caption" muted>
-                {t('q.masteryNote')}
-              </Text>
             </View>
           ) : null}
-          {res.achievements.map((a) => (
-            <Text key={a} variant="label">
-              🏅 {t('q.achievement', { name: a.replace(/_/g, ' ') })}
-            </Text>
-          ))}
+          {res ? (
+            <>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+                {res.xp.awarded > 0 ? (
+                  <Pill
+                    label={t('q.xp', { xp: res.xp.awarded })}
+                    fg={colors.onPrimary}
+                    bg={colors.primary}
+                  />
+                ) : null}
+                <Pill
+                  label={t('q.level', { level: res.xp.level })}
+                  fg={colors.text}
+                  bg={colors.surfaceAlt}
+                />
+                {res.xp.leveledUp ? (
+                  <Pill label={t('q.levelUp')} fg={colors.onPrimary} bg={colors.success} />
+                ) : null}
+              </View>
+              {res.replayed ? (
+                <Text variant="caption" muted>
+                  {t('q.replayed')}
+                </Text>
+              ) : null}
+              {res.repeatAttempt ? (
+                <Text variant="caption" muted>
+                  {t('q.repeat')}
+                </Text>
+              ) : null}
+              {res.mastery[0] ? (
+                <View style={{ gap: space.xs }}>
+                  <Text variant="caption" muted>
+                    {t('q.mastery')}
+                  </Text>
+                  <ProgressBar value={res.mastery[0].mastery} label={t('q.mastery')} height={10} />
+                  <Text variant="caption" muted>
+                    {t('q.masteryNote')}
+                  </Text>
+                </View>
+              ) : null}
+              {res.achievements.map((a) => (
+                <Text key={a} variant="label">
+                  🏅 {t('q.achievement', { name: a.replace(/_/g, ' ') })}
+                </Text>
+              ))}
+            </>
+          ) : null}
           {onNext ? <Button label={t('q.next')} onPress={onNext} /> : null}
         </Animated.View>
       ) : null}

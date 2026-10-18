@@ -1,4 +1,15 @@
 import { parseCreatorSubmission } from '@learning-loop/validation';
+import {
+  expandMediaItem,
+  isMediaEntry,
+  MAX_MEDIA_FILES,
+  MAX_MEDIA_MANIFEST_ITEMS,
+  parseMediaItem,
+  type MediaItem,
+  type MediaKind,
+  type PickedMedia,
+  type ReadyMediaItem,
+} from './bulk-media.ts';
 
 /**
  * Bulk import of questions / flashcards / notes from a JSON file (usually written by an AI chat from content/bulk-template.json).
@@ -19,9 +30,19 @@ export interface BulkProblem {
   index: number;
   message: string;
 }
-export type BulkFatal = 'empty' | 'too_big' | 'not_json' | 'no_items' | 'too_many' | 'bad_version';
+export type BulkFatal =
+  | 'empty'
+  | 'too_big'
+  | 'not_json'
+  | 'no_items'
+  | 'too_many'
+  | 'bad_version'
+  | 'too_many_media_items'
+  | 'too_many_files';
 export interface ParsedBulk {
   items: ValidItem[];
+  /** picture flashcards / image posts / videos: need their files picked before they can be sent */
+  media: MediaItem[];
   errors: BulkProblem[];
   /** number of items found in the file (valid + problems) */
   total: number;
@@ -147,7 +168,10 @@ export function normalizeItem(
     candidate = e.value;
   } else {
     if (raw.kind === 'video' || raw.kind === 'image')
-      return { ok: false, message: `kind "${String(raw.kind)}" cannot be imported from a file` };
+      return {
+        ok: false,
+        message: `kind "${String(raw.kind)}" needs its media files (use parseBulkFile)`,
+      };
     candidate = { difficulty: 'medium' };
     for (const k of HEAD_KEYS) if (raw[k] !== undefined) candidate[k] = raw[k];
     candidate.language = str(raw.language) ?? d.language;
@@ -179,7 +203,13 @@ const describe = (error: string, path?: string) =>
 
 /** Reads the whole file text into the items to upload and the problems found. Never throws. */
 export function parseBulkFile(text: string): ParsedBulk {
-  const none = (fatal: BulkFatal): ParsedBulk => ({ items: [], errors: [], total: 0, fatal });
+  const none = (fatal: BulkFatal): ParsedBulk => ({
+    items: [],
+    media: [],
+    errors: [],
+    total: 0,
+    fatal,
+  });
   if (utf8Bytes(text) > MAX_BULK_BYTES) return none('too_big');
   const cleaned = cleanJsonText(text);
   if (!cleaned) return none('empty');
@@ -202,14 +232,27 @@ export function parseBulkFile(text: string): ParsedBulk {
   if (!list.length) return none('no_items');
   if (list.length > MAX_BULK_ITEMS) return { ...none('too_many'), total: list.length };
 
+  const hasMedia = list.some((raw) => isObj(raw) && isMediaEntry(raw));
+  if (hasMedia && list.length > MAX_MEDIA_MANIFEST_ITEMS)
+    return { ...none('too_many_media_items'), total: list.length };
+
   const items: ValidItem[] = [];
+  const media: MediaItem[] = [];
   const errors: BulkProblem[] = [];
   list.forEach((raw, index) => {
+    if (isObj(raw) && isMediaEntry(raw)) {
+      const m = parseMediaItem(raw, index, d);
+      if (m.ok) media.push(m.item);
+      else errors.push({ index, message: m.message });
+      return;
+    }
     const r = normalizeItem(raw, d);
     if (r.ok) items.push({ index, payload: r.payload });
     else errors.push({ index, message: r.message });
   });
-  return { items, errors, total: list.length };
+  if (media.reduce((n, m) => n + m.refs.length, 0) > MAX_MEDIA_FILES)
+    return { ...none('too_many_files'), total: list.length };
+  return { items, media, errors, total: list.length };
 }
 
 export function chunk<T>(items: T[], size = BULK_CHUNK): T[][] {
@@ -227,6 +270,8 @@ export interface ImportProgress {
   total: number;
   imported: number;
   failed: number;
+  /** media uploads finished / planned (only when the import has media items) */
+  files?: { done: number; total: number };
 }
 export interface ImportSummary {
   imported: number;
@@ -323,6 +368,146 @@ export async function runBulkImport(
     });
     report();
     if (stoppedAt) return finish('rate_limited', stoppedAt);
+  }
+  return finish();
+}
+
+// ---------- importing with media ----------
+
+export type ImportEntry = ValidItem | ReadyMediaItem;
+const isMediaEntryItem = (e: ImportEntry): e is ReadyMediaItem => 'files' in e;
+/** Uploads ONE file (own folder, `pending`) and returns its media id (and the measured length for a video). */
+export type UploadFile = (
+  file: PickedMedia,
+  kind: MediaKind,
+  knownDurationMs?: number,
+) => Promise<{ mediaId: string; durationMs?: number }>;
+
+/**
+ * Like `runBulkImport` but some entries are media items: their files are uploaded one at a time (sequentially, so only one file
+ * is in memory), then the create-content bodies go out in chunks. Each reference is uploaded again (the server attaches a media
+ * row to a single post). A file upload is retried on network errors/5xx with backoff; 429 stops as `rate_limited`; another
+ * 4xx fails just that item. Media that was uploaded but never attached stays private in the owner's own folder (harmless).
+ */
+export async function runMixedImport(
+  entries: ImportEntry[],
+  send: SendChunk,
+  upload: UploadFile,
+  o: {
+    isCancelled?: () => boolean;
+    onProgress?: (p: ImportProgress) => void;
+    retries?: number;
+    backoffMs?: number;
+    sleep?: (ms: number) => Promise<void>;
+    size?: number;
+  } = {},
+): Promise<ImportSummary> {
+  const retries = o.retries ?? 2;
+  const backoff = o.backoffMs ?? 1500;
+  const sleep = o.sleep ?? sleepMs;
+  const totalFiles = entries.reduce((n, e) => n + (isMediaEntryItem(e) ? e.files.length : 0), 0);
+  const failed: BulkProblem[] = [];
+  let imported = 0;
+  let handled = 0;
+  let filesDone = 0;
+  const report = (extra = { done: 0, imported: 0, failed: 0 }) =>
+    o.onProgress?.({
+      done: handled + extra.done,
+      total: entries.length,
+      imported: imported + extra.imported,
+      failed: failed.length + extra.failed,
+      ...(totalFiles ? { files: { done: filesDone, total: totalFiles } } : {}),
+    });
+  const finish = (stopped?: StopReason, resumeAt?: number): ImportSummary => ({
+    imported,
+    failed,
+    notSent: entries.length - handled,
+    stopped,
+    resumeAt,
+  });
+
+  type Prepared =
+    | { ok: true; payload: Record<string, unknown> }
+    | { ok: false; stop: StopReason }
+    | { ok: false; message: string };
+  const prepare = async (e: ReadyMediaItem): Promise<Prepared> => {
+    const ids: string[] = [];
+    let measured: number | undefined;
+    for (let i = 0; i < e.files.length; i++) {
+      const ref = e.refs[i]!;
+      let lastStatus = -1;
+      let done = false;
+      for (let attempt = 0; attempt <= retries && !done; attempt++) {
+        if (o.isCancelled?.()) return { ok: false, stop: 'cancelled' };
+        try {
+          const r = await upload(e.files[i]!, ref.kind, e.durationMs);
+          ids.push(r.mediaId);
+          if (r.durationMs) measured = r.durationMs;
+          filesDone++;
+          report();
+          done = true;
+        } catch (err) {
+          lastStatus = statusOf(err);
+          const retryable = lastStatus === 0 || lastStatus >= 500 || lastStatus === -1;
+          if (!retryable) break;
+          if (attempt < retries) await sleep(backoff * 2 ** attempt);
+        }
+      }
+      if (!done) {
+        if (lastStatus === 429) return { ok: false, stop: 'rate_limited' };
+        if (lastStatus === 0 || lastStatus === -1) return { ok: false, stop: 'offline' };
+        if (lastStatus >= 500) return { ok: false, stop: 'server' };
+        return { ok: false, message: `could not upload ${e.files[i]!.name} (error ${lastStatus})` };
+      }
+    }
+    return { ok: true, payload: expandMediaItem(e, ids, measured) };
+  };
+
+  report();
+  for (const group of chunk(entries, o.size ?? BULK_CHUNK)) {
+    const prepared: ValidItem[] = [];
+    let stop: { reason: StopReason; at: ImportEntry } | undefined;
+    for (const e of group) {
+      if (o.isCancelled?.()) {
+        stop = { reason: 'cancelled', at: e };
+        break;
+      }
+      if (!isMediaEntryItem(e)) {
+        prepared.push(e);
+        continue;
+      }
+      const r = await prepare(e);
+      if (r.ok) prepared.push({ index: e.index, payload: r.payload });
+      else if ('stop' in r) {
+        stop = { reason: r.stop, at: e };
+        break;
+      } else {
+        failed.push({ index: e.index, message: r.message });
+        handled++;
+        report();
+      }
+    }
+    if (prepared.length) {
+      const base = { imported, failed: failed.length, handled };
+      const s = await runBulkImport(prepared, send, {
+        ...o,
+        size: prepared.length,
+        isCancelled: undefined, // everything prepared in this group is sent
+        onProgress: (p) =>
+          o.onProgress?.({
+            done: base.handled + p.done,
+            total: entries.length,
+            imported: base.imported + p.imported,
+            failed: base.failed + p.failed,
+            ...(totalFiles ? { files: { done: filesDone, total: totalFiles } } : {}),
+          }),
+      });
+      imported += s.imported;
+      failed.push(...s.failed);
+      handled += prepared.length - s.notSent;
+      if (s.stopped) return finish(s.stopped, s.resumeAt);
+    }
+    if (stop) return finish(stop.reason, stop.at.index + 1);
   }
   return finish();
 }

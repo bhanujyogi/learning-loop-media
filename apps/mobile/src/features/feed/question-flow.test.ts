@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   activate,
+  answerInstantly,
   beginSubmit,
   failed,
   initFlow,
@@ -105,5 +106,76 @@ describe('answer shapes through the flow', () => {
     expect(go(setText(initFlow('k'), 'Jaipur'), 'fill_blank')!.request.response).toEqual({
       value: 'Jaipur',
     });
+  });
+});
+
+describe('instant verdict path', () => {
+  const verdict = (tapped: string, correct: boolean) => ({
+    tapped,
+    correct,
+    correctToken: correct ? tapped : 'z',
+    explanation: 'because',
+  });
+  const tap = (f = initFlow('k0'), v = verdict('a', true), now = 10_000) =>
+    answerInstantly(f, v, { type: 'single_choice', now, newKey })!;
+
+  it('the verdict is in the state the moment the option is tapped, while the server submit is still in flight', () => {
+    const r = tap(activate(initFlow('k0'), 4_000), verdict('a', false), 9_000);
+    expect(r.state.instant).toMatchObject({ tapped: 'a', correct: false });
+    expect(r.state.phase).toBe('submitting');
+    expect(r.state.selected).toEqual(['a']);
+    expect(r.request).toEqual({
+      response: { optionId: 'a' },
+      responseMs: 5_000,
+      hintsUsed: 0,
+      idempotencyKey: 'k0',
+    });
+  });
+  it('true/false builds the boolean payload', () => {
+    const r = answerInstantly(initFlow('k0'), verdict('false', true), {
+      type: 'true_false',
+      now: 1,
+      newKey,
+    })!;
+    expect(r.request.response).toEqual({ value: false });
+  });
+  it('the answer cannot be changed or tapped again (no double submit), before, during or after grading', () => {
+    const r = tap();
+    expect(
+      answerInstantly(r.state, verdict('b', true), { type: 'single_choice', now: 1, newKey }),
+    ).toBeNull();
+    expect(select(r.state, 'b', false)).toBe(r.state);
+    const graded = succeeded(r.state);
+    expect(graded.instant).not.toBeNull();
+    expect(select(graded, 'b', false)).toBe(graded);
+    expect(go(graded)).toBeNull();
+  });
+  it('a failed background submit keeps the verdict and the lock; retrying re-sends the SAME key and answer', () => {
+    const r = tap();
+    const back = failed(r.state, true);
+    expect(back.instant).toEqual(r.state.instant);
+    expect(back.phase).toBe('answering');
+    expect(back.error).toBe('offline');
+    expect(select(back, 'b', false)).toBe(back); // still locked
+    expect(
+      answerInstantly(back, verdict('b', false), { type: 'single_choice', now: 1, newKey }),
+    ).toBeNull();
+    const retry = go(back)!;
+    expect(retry.request.idempotencyKey).toBe('k0');
+    expect(retry.request.response).toEqual({ optionId: 'a' });
+    expect(retry.state.instant).toEqual(r.state.instant);
+    // a second failure and retry still never changes the key
+    expect(go(failed(retry.state, false))!.request.idempotencyKey).toBe('k0');
+  });
+  it('a successful late result leaves the instant verdict in place', () => {
+    const r = tap();
+    expect(succeeded(r.state)).toMatchObject({ phase: 'graded', instant: r.state.instant });
+  });
+  it('a restored (cached) answer is graded and has no instant state', () => {
+    const f = initFlow('k', { selected: ['a'], text: '' });
+    expect(f.instant).toBeNull();
+    expect(
+      answerInstantly(f, verdict('a', true), { type: 'single_choice', now: 1, newKey }),
+    ).toBeNull();
   });
 });

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "language": "hi",
+  "topic": "सामान्य ज्ञान",
+  "items": [
+    {
+      "kind": "flashcard",
+      "title": "भारत की राजधानी",
+      "front": "card-001-front.png",
+      "back": "card-001-back.png"
+    },
+    {
+      "kind": "flashcard",
+      "title": "पानी का रासायनिक सूत्र",
+      "topic": "विज्ञान",
+      "front": "card-002-front.png",
+      "back": "card-002-back.png",
+      "frontText": "पानी का रासायनिक सूत्र क्या है?",
+      "backText": "H2O"
+    },
+    {
+      "kind": "flashcard",
+      "title": "Capital of Rajasthan",
+      "language": "en",
+      "topic": "General knowledge",
+      "front": "card-003-front.png",
+      "back": "card-003-back.png"
+    }
+  ]
+}

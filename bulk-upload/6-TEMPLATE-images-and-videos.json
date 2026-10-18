@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "language": "hi",
+  "topic": "भौतिक विज्ञान",
+  "items": [
+    {
+      "kind": "image",
+      "title": "न्यूटन के गति के नियम",
+      "images": ["newton-page1.jpg", "newton-page2.jpg", "newton-page3.jpg"],
+      "caption": "तीनों नियम एक नज़र में। आगे बढ़ने के लिए स्वाइप करें।"
+    },
+    {
+      "kind": "image",
+      "title": "Ohm's law formula sheet",
+      "language": "en",
+      "topic": "Electricity",
+      "images": ["ohm-formulas.png"]
+    },
+    {
+      "kind": "video",
+      "title": "गुरुत्वाकर्षण 1 मिनट में",
+      "file": "reel-01.mp4",
+      "durationSeconds": 45
+    },
+    {
+      "kind": "video",
+      "title": "Why the sky is blue",
+      "language": "en",
+      "topic": "Light",
+      "file": "reel-02.mp4"
+    }
+  ]
+}

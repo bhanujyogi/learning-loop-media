@@ -10,7 +10,6 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 import { useI18n } from '../../i18n/I18nProvider';
-import { track } from '../../lib/event-queue';
 import { useMediaUrl } from '../../lib/media';
 import { radius, space } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
@@ -177,35 +176,6 @@ export function NoteView({ body }: { body: NoteBody }) {
             return null;
         }
       })}
-    </View>
-  );
-}
-
-export function FlashcardCard({
-  contentId,
-  body,
-}: {
-  contentId: string;
-  body: { front?: string; back?: string };
-}) {
-  const { t } = useI18n();
-  const [flipped, setFlipped] = useState(false);
-  return (
-    <View style={{ gap: space.lg }}>
-      <Text variant="prompt">{body.front}</Text>
-      {flipped ? (
-        <Card style={{ borderWidth: 2 }}>
-          <Text style={{ fontSize: 19, lineHeight: 28 }}>{body.back}</Text>
-        </Card>
-      ) : null}
-      <Button
-        variant={flipped ? 'secondary' : 'primary'}
-        label={flipped ? t('flash.hide') : t('flash.show')}
-        onPress={() => {
-          if (!flipped) track('flashcard_reviewed', { flashcard_id: contentId });
-          setFlipped((f) => !f);
-        }}
-      />
     </View>
   );
 }

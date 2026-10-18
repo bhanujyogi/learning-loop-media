@@ -65,4 +65,13 @@ export const feedHi: Record<keyof typeof feedEn, string> = {
     'सर्वर ने इम्पोर्ट स्वीकार नहीं किया। हो सकता है अभी आपको पोस्ट करने की अनुमति न हो।',
   'feed.bulk.stop.server': 'सर्वर में समस्या आई। कुछ मिनट बाद आइटम {n} से फिर कोशिश करें।',
   'feed.bulk.notSent': '{count} आइटम भेजे नहीं गए।',
+  'feed.instant.saving': 'आपका उत्तर सेव हो रहा है…',
+  'feed.instant.notSaved':
+    'आपका उत्तर अभी सेव नहीं हुआ है, इसलिए यह आपकी प्रगति में नहीं गिना जाएगा।',
+  'feed.instant.retry': 'फिर से सेव करें',
+  'feed.flash.tapToFlip': 'पलटने के लिए टैप करें',
+  'feed.flash.a11yHint': 'कार्ड पलटने के लिए दो बार टैप करें',
+  'feed.flash.front': 'कार्ड का आगे का हिस्सा',
+  'feed.flash.back': 'कार्ड का पीछे का हिस्सा',
+  'feed.flash.imageLoading': 'तस्वीर लोड हो रही है…',
 };

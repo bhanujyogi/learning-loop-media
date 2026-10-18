@@ -2,10 +2,10 @@ import { interactiveDefinition } from '@learning-loop/validation';
 import { useRouter } from 'expo-router';
 import { useI18n } from '../../i18n/I18nProvider';
 import { track } from '../../lib/event-queue';
+import type { InstantCheck } from '../../lib/instant-check';
 import { Button, Text } from '../../ui/primitives';
 import { InteractiveRenderer } from '../interactive/InteractiveRenderer';
 import {
-  FlashcardCard,
   ImageCard,
   NotePreview,
   NoteView,
@@ -13,6 +13,7 @@ import {
   type ImageBody,
   type NoteBody,
 } from './MediaCards';
+import { FlashCard, type FlashcardBody } from './FlashCard';
 import { QuestionCard } from './QuestionCard';
 import type { PublicQuestion } from './question-model';
 
@@ -20,6 +21,8 @@ export interface ContentLike {
   contentId: string;
   type: string;
   body: unknown;
+  /** single-choice / true-false: instant verdict material from the feed (absent on older cached items and the detail page) */
+  instantCheck?: InstantCheck;
 }
 
 /**
@@ -56,6 +59,7 @@ export function ContentBody({
           body={body as unknown as PublicQuestion}
           active={active}
           onNext={onNext}
+          instantCheck={item.instantCheck}
         />
       );
     case 'note':
@@ -81,7 +85,7 @@ export function ContentBody({
         </>
       );
     case 'flashcard':
-      return <FlashcardCard contentId={item.contentId} body={body as never} />;
+      return <FlashCard contentId={item.contentId} body={body as FlashcardBody} />;
     case 'video':
       return <VideoCard body={body as never} active={active} preload={preload} />;
     case 'image':

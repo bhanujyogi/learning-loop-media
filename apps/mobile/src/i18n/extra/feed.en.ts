@@ -62,4 +62,13 @@ export const feedEn = {
   'feed.bulk.stop.server':
     'The server had a problem. Try again in a few minutes, starting from item {n}.',
   'feed.bulk.notSent': '{count} items were not sent.',
+  'feed.instant.saving': 'Saving your answer…',
+  'feed.instant.notSaved':
+    'Your answer is not saved yet, so it does not count toward your progress.',
+  'feed.instant.retry': 'Try saving again',
+  'feed.flash.tapToFlip': 'Tap to flip',
+  'feed.flash.a11yHint': 'Double tap to flip the card',
+  'feed.flash.front': 'Front of card',
+  'feed.flash.back': 'Back of card',
+  'feed.flash.imageLoading': 'Loading picture…',
 } as const;

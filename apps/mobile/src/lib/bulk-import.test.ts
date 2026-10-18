@@ -134,7 +134,7 @@ describe('parseBulkFile', () => {
     expect(r.items.map((i) => i.index)).toEqual([0]);
     expect(r.errors.map((e) => e.index)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(r.errors[0]!.message).toMatch(/does not match any option/);
-    expect(r.errors[3]!.message).toMatch(/cannot be imported/);
+    expect(r.errors[3]!.message).toMatch(/file is missing/);
   });
 
   it('needs a language and a topic from the item or the file', () => {

@@ -1,3 +1,4 @@
+import type { InstantVerdict } from '../../lib/instant-check';
 import { buildResponse } from './question-model';
 
 /**
@@ -17,6 +18,8 @@ export interface Flow {
   /** JSON of the response last sent with `key` (null = nothing sent yet) */
   sentResponse: string | null;
   error: 'offline' | 'generic' | null;
+  /** Set when the learner got an instant local verdict (single choice / true-false). The answer is then locked for good, even if the background submit fails. */
+  instant: InstantVerdict | null;
 }
 export interface SubmitRequest {
   response: unknown;
@@ -34,9 +37,10 @@ export const initFlow = (key: string, restored?: { selected: string[]; text: str
   key,
   sentResponse: null,
   error: null,
+  instant: null,
 });
 
-const editable = (f: Flow) => f.phase === 'answering';
+const editable = (f: Flow) => f.phase === 'answering' && f.instant === null;
 
 export const activate = (f: Flow, now: number): Flow =>
   f.activeAt === null ? { ...f, activeAt: now } : f;
@@ -80,6 +84,19 @@ export function beginSubmit(
       idempotencyKey: key,
     },
   };
+}
+/**
+ * Instant path: the learner tapped an option and already has the verdict. Locks the answer and starts the background server
+ * submit in one step (same request shape, key and response-time rules as `beginSubmit`). Null if not answerable any more.
+ */
+export function answerInstantly(
+  f: Flow,
+  verdict: InstantVerdict,
+  o: { type: string; now: number; newKey: () => string },
+): { state: Flow; request: SubmitRequest } | null {
+  if (f.phase !== 'answering' || f.instant) return null;
+  const begun = beginSubmit({ ...f, selected: [verdict.tapped] }, { ...o, ready: true });
+  return begun && { ...begun, state: { ...begun.state, instant: verdict } };
 }
 export const succeeded = (f: Flow): Flow => ({ ...f, phase: 'graded', error: null });
 export const failed = (f: Flow, offline: boolean): Flow => ({

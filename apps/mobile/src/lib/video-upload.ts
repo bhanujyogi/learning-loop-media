@@ -39,12 +39,14 @@ async function durationMs(uri: string): Promise<number> {
 export async function uploadVideo(
   v: PickedVideo,
   userId: string,
+  /** when the length is already known (bulk import manifest) the file is not opened in a player */
+  knownDurationMs?: number,
 ): Promise<{ mediaId: string; durationMs: number }> {
   const bytes = await new File(v.uri).arrayBuffer();
   const key = `${userId}/${uuid()}.mp4`;
   const up = await supabase.storage.from('media').upload(key, bytes, { contentType: 'video/mp4' });
   if (up.error) throw up.error;
-  const duration = await durationMs(v.uri);
+  const duration = knownDurationMs ?? (await durationMs(v.uri));
   const { data, error } = await supabase
     .from('media_assets')
     .insert({
