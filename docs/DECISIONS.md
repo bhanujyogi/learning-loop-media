@@ -105,3 +105,12 @@ Format: Date · Problem · Options · Decision · Why · Trade-offs · Reconside
 - **Account deletion is a SECURITY DEFINER SQL function** (not a service-role Edge call): it keeps privileged credentials out of functions, is unit-tested in the same harness, and soft-deletes content (user content may keep a NULL owner only when `publishing = 'deleted'`). Other learners' attempts on a deleted creator's questions are preserved.
 - **18+ only.** Exam audiences (SSC, banking, railway) are adults, and treating under-18s would require parental-consent flows we do not have.
 - **Distribution first = APK + web legal pages**, Play listing after (account/testing requirements), because the 6-day deadline cannot depend on store review.
+
+## 2026-10-18 — Instant answers for tap-to-answer questions (owner decision)
+
+The owner chose instant right/wrong + explanation on tap, with no "Check answer" button. The feed now sends, for single-choice and
+true/false questions only, `instantCheck {salt, hash, explanation}` (hash = sha256 of `salt|contentId|correctToken`, see
+`packages/database/src/services/instant-check.ts`). The raw key is not in the payload, but a determined learner can recover the answer
+and read the explanation on their own device. Mastery, XP and reviews are still decided only by the server-graded `submitAnswer`
+(called in the background) with its repeat discounts and caps, so this affects only the learner's own practice. Typed answers
+(fill-in-the-blank, numerical) still use the server check. Revisit if answers must stay secret (e.g. timed contests).

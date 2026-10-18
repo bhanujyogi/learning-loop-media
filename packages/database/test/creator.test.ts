@@ -8,6 +8,7 @@ import {
   asUser,
   DomainFailure,
   getFeed,
+  instantCheckHash,
   submitAnswer,
   type Sql,
 } from '../src';
@@ -313,6 +314,60 @@ describe('creator upload service', () => {
       expect(e).not.toBeNull();
     });
   });
+  describe('picture flashcards and instant-check data', () => {
+    it('a flashcard with front and back images attaches both pictures and goes live', async () => {
+      const mk = async (mime: string) => {
+        const key = `${creator}/${crypto.randomUUID()}.png`;
+        await db.query(
+          `insert into storage.objects(bucket_id, name, owner, metadata) values ('media', $1, $2, $3::jsonb)`,
+          [key, creator, JSON.stringify({ size: 99, mimetype: mime })],
+        );
+        return (
+          await db.query<{ id: string }>(
+            `insert into media_assets(owner_user_id, bucket, storage_key, mime_type, size_bytes) values ($1,'media',$2,$3,99) returning id`,
+            [creator, key, mime],
+          )
+        ).rows[0]!.id;
+      };
+      const front = await mk('image/png');
+      const back = await mk('image/png');
+      const r = await createContent(asCaller, creator, {
+        kind: 'flashcard',
+        title: 'Capital of Rajasthan',
+        language: 'hi',
+        topic: 'Rajasthan GK',
+        body: { frontMediaId: front, backMediaId: back },
+      });
+      const m = await db.query<{ status: string; content_id: string }>(
+        `select status, content_id from media_assets where id in ($1,$2)`,
+        [front, back],
+      );
+      expect(m.rows.every((x) => x.status === 'ready' && x.content_id === r.contentId)).toBe(true);
+      const body = (
+        await db.query<{ body: Record<string, unknown> }>(
+          `select body from content_versions where content_id = $1`,
+          [r.contentId],
+        )
+      ).rows[0]!.body;
+      expect(body).toMatchObject({ frontMediaId: front, backMediaId: back });
+    });
+
+    it('the feed gives tap-to-answer questions an instant check that matches the correct option only', async () => {
+      const r = await createContent(asCaller, trusted, question());
+      let item: { instantCheck?: { salt: string; hash: string; explanation: string }; body: unknown } | undefined;
+      for (let i = 0; i < 8 && !item; i++)
+        item = (
+          await getFeed(server, { userId: viewer, limit: 30, now: T0 + i, seed: i })
+        ).items.find((x) => x.contentId === r.contentId);
+      expect(item?.instantCheck).toBeTruthy();
+      const c = item!.instantCheck!;
+      expect(JSON.stringify(item)).not.toContain('"optionId":"a"'); // the key itself is not in the payload
+      expect(c.hash).toBe(instantCheckHash(c.salt, r.contentId, 'a'));
+      expect(c.hash).not.toBe(instantCheckHash(c.salt, r.contentId, 'b'));
+      expect(c.explanation).toBe('ओम।');
+    });
+  });
+
   describe('free-text topics and image posts', () => {
     const upload = async (owner: string, mime: string, ext: string) => {
       const key = `${owner}/${crypto.randomUUID()}.${ext}`;
