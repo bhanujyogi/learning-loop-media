@@ -72,6 +72,8 @@ export interface FeedItem {
   /** Author's user id for user/creator content (followable); null for official content. */
   creatorUserId: string | null;
   official: boolean;
+  /** single-choice / true-false questions: instant local right/wrong + explanation (see lib/instant-check.ts) */
+  instantCheck?: { salt: string; hash: string; explanation: string };
 }
 export interface FeedResponse {
   recommendationId: string | null;

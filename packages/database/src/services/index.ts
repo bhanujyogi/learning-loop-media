@@ -4,3 +4,4 @@ export * from './feed.ts';
 export * from './onboarding.ts';
 export * from './features-store.ts';
 export * from './creator.ts';
+export * from './instant-check.ts';

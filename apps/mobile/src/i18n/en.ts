@@ -2,11 +2,13 @@
  * English message catalogue = the source of truth for message keys. `hi.ts` must provide every key (compile-time) with the
  * same `{placeholders}` (tested). Plural keys use `_one` / `_other` suffixes and are selected via `count`.
  */
+import { bulkEn } from './extra/bulk.en';
 import { chatEn } from './extra/chat.en';
 import { feedEn } from './extra/feed.en';
 import { profileEn } from './extra/profile.en';
 
 export const en = {
+  ...bulkEn,
   ...chatEn,
   ...profileEn,
   ...feedEn,

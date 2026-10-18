@@ -102,12 +102,30 @@ export function parseCreatorSubmission(input: unknown): CreatorResult {
     };
   }
   if (s.kind === 'flashcard') {
-    const f = flashcardBody.safeParse(s.body);
+    // picture cards: the front/back are images (uploaded first); the text then only serves as the accessible description
+    const raw = (s.body ?? {}) as {
+      front?: unknown;
+      back?: unknown;
+      frontMediaId?: unknown;
+      backMediaId?: unknown;
+    };
+    const f = flashcardBody.safeParse({
+      ...raw,
+      front: raw.front || (raw.frontMediaId ? s.title : raw.front),
+      back: raw.back || (raw.backMediaId ? s.title : raw.back),
+    });
     if (!f.success) return bad('invalid_flashcard', f.error.issues[0]?.path.join('.'));
-    if (f.data.frontMediaId || f.data.backMediaId) return bad('media_not_allowed');
+    const mediaIds = [f.data.frontMediaId, f.data.backMediaId].filter((m): m is string => !!m);
     return {
       ok: true,
-      value: { ...base, kind: 'flashcard', format: 'flashcard', hook: 'speed', body: f.data },
+      value: {
+        ...base,
+        kind: 'flashcard',
+        format: 'flashcard',
+        hook: 'speed',
+        body: f.data,
+        ...(mediaIds.length ? { mediaIds } : {}),
+      },
     };
   }
   if (s.kind === 'video') {

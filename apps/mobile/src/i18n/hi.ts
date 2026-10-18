@@ -1,4 +1,5 @@
 import type { MessageKey } from './en';
+import { bulkHi } from './extra/bulk.hi';
 import { chatHi } from './extra/chat.hi';
 import { feedHi } from './extra/feed.hi';
 import { profileHi } from './extra/profile.hi';
@@ -8,6 +9,7 @@ import { profileHi } from './extra/profile.hi';
  * Content (questions, notes, …) is never translated here: it arrives in its own language from the database.
  */
 export const hi: Record<MessageKey, string> = {
+  ...bulkHi,
   ...chatHi,
   ...profileHi,
   ...feedHi,

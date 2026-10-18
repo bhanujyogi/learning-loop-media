@@ -18,6 +18,7 @@ import {
 } from '@learning-loop/recommendation-engine';
 import { asUser, ts, type Sql } from '../sql.ts';
 import { loadFeatures, saveFeatures } from './features-store.ts';
+import { instantToken, makeInstantCheck, type InstantCheck } from './instant-check.ts';
 
 export interface FeedRequest {
   userId: string;
@@ -42,6 +43,8 @@ export interface FeedItem {
   /** Author's user id for user/creator content (followable); null for official content. */
   creatorUserId: string | null;
   official: boolean;
+  /** Single-choice / true-false questions only: instant right/wrong + explanation in the app (see instant-check.ts). */
+  instantCheck?: InstantCheck;
 }
 export interface FeedResponse {
   recommendationId: string | null;
@@ -492,6 +495,26 @@ async function getFeedInTx(sql: Sql, req: FeedRequest): Promise<FeedResponse> {
       creatorUserId: r.owner_user_id,
       official: r.ownership === 'official',
     });
+  }
+  // instant right/wrong + explanation for tap-to-answer questions
+  const tappable = items.filter(
+    (i) =>
+      i.type === 'question' &&
+      ['single_choice', 'true_false'].includes((i.body as { type?: string } | null)?.type ?? ''),
+  );
+  if (tappable.length) {
+    const keys = await sql.query<{ id: string; answer: unknown; explanation: string }>(
+      `select ci.id, k.answer, k.explanation from content_items ci
+         join content_answer_keys k on k.content_version_id = ci.current_version_id
+        where ci.id = any($1::uuid[])`,
+      [tappable.map((i) => i.contentId)],
+    );
+    const byQ = new Map(keys.map((k) => [k.id, k]));
+    for (const i of tappable) {
+      const k = byQ.get(i.contentId);
+      const token = k ? instantToken((i.body as { type?: string }).type, k.answer) : null;
+      if (k && token) i.instantCheck = makeInstantCheck(i.contentId, token, k.explanation ?? '');
+    }
   }
   await saveFeatures(sql, f);
   return {
