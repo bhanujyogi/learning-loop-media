@@ -1,3 +1,6 @@
+ALSO AVAILABLE: 3-PROMPT-picture-flashcards.txt (flashcards made of pictures) and 4-PROMPT-images-and-videos.txt (image posts and videos).
+One file can mix questions, text flashcards, notes, pictures and videos. Templates: 5-TEMPLATE... and 6-TEMPLATE...
+
 HOW TO UPLOAD THOUSANDS OF QUESTIONS (simple steps)
 ====================================================
 1. Open Claude chat (or ChatGPT). Copy EVERYTHING between the two lines "COPY FROM HERE" and "COPY UNTIL HERE" and paste it.

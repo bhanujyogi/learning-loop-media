@@ -354,7 +354,9 @@ describe('creator upload service', () => {
 
     it('the feed gives tap-to-answer questions an instant check that matches the correct option only', async () => {
       const r = await createContent(asCaller, trusted, question());
-      let item: { instantCheck?: { salt: string; hash: string; explanation: string }; body: unknown } | undefined;
+      let item:
+        | { instantCheck?: { salt: string; hash: string; explanation: string }; body: unknown }
+        | undefined;
       for (let i = 0; i < 8 && !item; i++)
         item = (
           await getFeed(server, { userId: viewer, limit: 30, now: T0 + i, seed: i })

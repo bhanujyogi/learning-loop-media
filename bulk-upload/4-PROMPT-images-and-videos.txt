@@ -1,0 +1,76 @@
+IMAGE POSTS AND VIDEOS - UPLOAD MANY AT ONCE
+============================================
+IMAGE POST  = one or more pictures (up to 10) that learners swipe through, with an optional caption. Good for notes, formula
+              sheets, diagrams, chapter summaries.
+VIDEO       = one short MP4 file.
+
+SIMPLE STEPS
+1. Put all your pictures / videos in ONE folder on your phone (for example Downloads/batch-1). Do NOT rename them after step 3.
+2. Open an AI chat. Copy everything between "COPY FROM HERE" and "COPY UNTIL HERE" below, paste it, and then write the list of
+   your files: one line per post, with the exact file names, the title and the topic (see the example at the bottom).
+   Tip: you can also type the file names as a list by looking at your folder.
+3. The chat returns a manifest (.json). Save it into the same folder. The file must end with .json.
+4. In the app: Create -> "Import many (file)" -> choose the manifest.
+5. Tap "Select media files" and select ALL the pictures and videos of that manifest at once (long-press one, then tap the others).
+6. Check the summary: items ready, MISSING files, unused files, wrong type or too big. Fix or ignore them (affected items are skipped).
+7. Tick the box (the content is yours or you may share it) and tap "Start import". Keep the app open. Videos take longer.
+   If it stops, it shows the item number to continue from. Type it in "Start from item number" and start again.
+
+LIMITS
+- Pictures: JPG, PNG or WebP, up to 10 MB each. Up to 10 pictures per image post.
+- Videos: MP4 only, up to 60 MB each. Other formats (MOV, MKV, AVI) are not accepted - convert them to MP4 first.
+- One manifest: up to 2000 items and 600 files. For videos, 20 to 50 per manifest is comfortable.
+- Normal accounts can post about 20 items per hour. Trusted creators about 1000 per hour.
+- If the same file is used in two posts, it is uploaded twice (each post needs its own copy).
+
+FILE NAMING ADVICE
+- Use simple names: lowercase letters, numbers and dashes. Good: newton-page1.jpg, reel-01.mp4. Hindi names also work.
+- Keep names unique: never two different files with the same name. The app matches names exactly (capital or small letters
+  do not matter, the folder does not matter).
+- Number them (reel-01, reel-02 ...) so the order is easy to follow.
+
+HOW TO MAKE FILES SMALLER
+- Pictures: export as JPG with quality 80 percent, or as WebP; a width of 1080 px is enough. Phone photos (4000 px) are often
+  4 to 8 MB - resize them.
+- Videos: record in 720p or 1080p at 30 fps, not 4K. Use your phone's "HD, 30 fps" setting. A 60-second 1080p video is about 20 to
+  40 MB. If a video is above 60 MB, compress it with a free app (for example "Video Compress" or CapCut with 720p export) or
+  cut it into two parts. Short videos (15 to 60 seconds) work best.
+
+----- COPY FROM HERE -----
+Make a manifest file (JSON) for the Learning Loop app from the list of my files below.
+- Return ONLY valid JSON: double quotes, no comments, no trailing commas, no markdown, no extra words.
+- Use the file names EXACTLY as I wrote them. Do not invent files. Do not change the names.
+- Format:
+
+{
+  "version": 1,
+  "language": "hi",
+  "topic": "default subject (2 to 80 characters)",
+  "items": [
+    {
+      "kind": "image",
+      "title": "Title of the post (3 or more characters)",
+      "images": ["page1.jpg", "page2.jpg"],
+      "caption": "One or two lines about the post (optional)"
+    },
+    {
+      "kind": "video",
+      "title": "Title of the video (3 or more characters)",
+      "file": "reel-01.mp4",
+      "durationSeconds": 45
+    }
+  ]
+}
+
+- "kind" is "image" (several pictures in "images", 1 to 10) or "video" (one MP4 in "file").
+- "durationSeconds" is optional: write it only if I tell you the length; otherwise leave it out (the app reads the real length).
+- "language" is "hi" or "en"; an item may have its own "language" and "topic".
+- One item per post. A picture or video file is used in only one post.
+
+My files (one line per post: file names - title - topic):
+(paste your list here)
+----- COPY UNTIL HERE -----
+
+EXAMPLE OF WHAT YOU PASTE
+  newton-page1.jpg, newton-page2.jpg, newton-page3.jpg - Newton's laws - Physics
+  reel-01.mp4 - Gravity in one minute - Physics

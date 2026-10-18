@@ -1,0 +1,93 @@
+PICTURE FLASHCARDS - UPLOAD HUNDREDS AT ONCE
+============================================
+A picture flashcard has two images:
+  FRONT image = the question / prompt
+  BACK image  = the answer, WRITTEN ON THE IMAGE
+The app shows the front, the learner taps, and the back appears.
+
+WHAT YOU NEED
+- An AI chat that can make images (ChatGPT, Gemini, Claude with image tools...).
+- Your phone with the Learning Loop app.
+
+STEP BY STEP
+1. Open the AI chat. Copy everything between "COPY FROM HERE" and "COPY UNTIL HERE" below and paste it.
+2. Right after it, paste your list of cards (or attach the pages / photos of your notes).
+3. Work in BATCHES OF 50 CARDS. Say: "Do cards 1 to 50 now." When that is done, say: "Now cards 51 to 100." and so on.
+   Try 5 cards first to check that the look is good. Then do the rest.
+4. Download ALL the images and the manifest file (the .json) to your phone. Put them in ONE folder (for example Downloads/cards-1).
+   The file names must stay exactly as the chat gave them (card-001-front.png, card-001-back.png ...). Do not rename them.
+5. In the app: Create -> "Import many (file)" -> choose the manifest .json file.
+6. Tap "Select media files" and select ALL the images of that batch at once
+   (long-press one picture, then tap the others, or use "Select all" if your phone shows it). Tap Done.
+7. Read the summary. It tells you how many cards are ready, which files are MISSING and which are unused.
+   Cards with a missing file are skipped; the good ones are imported.
+8. Tick the box saying the content is yours or you may share it, then tap "Start import".
+   Keep the app open until it finishes. If it stops (limit or no internet), it tells you the item number to continue from.
+   Type that number in "Start from item number" and start again, with the same files selected.
+
+LIMITS
+- Pictures: JPG, PNG or WebP, up to 10 MB each. (A 1080 px PNG is usually 0.3 to 2 MB.)
+- One manifest: up to 2000 items and 600 files. So at most 300 cards per manifest (2 images per card). Use a new manifest for each
+  batch of 50 to 100 cards; it is easier to check.
+- Normal accounts can post about 20 items per hour. Trusted creators about 1000 per hour.
+
+----- COPY FROM HERE -----
+You are my flashcard designer. I will give you a list of cards. For EVERY card create TWO images and then a manifest file.
+
+IMAGES
+- Front image: shows only the question or prompt. Back image: shows the answer, WRITTEN ON THE IMAGE (a short answer, plus a
+  one-line explanation if useful).
+- Same size for all images: 1080 x 1350 pixels (portrait) - or 1080 x 1080 if I ask for square.
+- Same look for the whole set: one background colour, one font, the same layout. High contrast (dark text on a light background
+  or the reverse). Very large, easy to read text, at least 60 px. Keep the text short.
+- Hindi text must be written in clear Devanagari and spelled correctly. English text in clear Latin letters. Do not mix up letters.
+- No logos, no watermarks, no copyrighted characters, no photos of real people.
+- Save as PNG (or JPG). File names, with 3-digit numbers, exactly:
+  card-001-front.png and card-001-back.png, card-002-front.png and card-002-back.png, and so on.
+  If this is batch 2, continue the numbers (card-051-front.png ...). Never reuse a number.
+- Give me the images as downloadable files. If you can only show them one by one, give each one with its exact file name.
+
+MANIFEST (a .json file, returned as a downloadable file or as plain text)
+- Return ONLY valid JSON: double quotes, no comments, no trailing commas, no markdown, no extra words.
+- One item per card, in this exact form:
+
+{
+  "version": 1,
+  "language": "hi",
+  "topic": "short name of the subject or chapter (2 to 80 characters)",
+  "items": [
+    {
+      "kind": "flashcard",
+      "title": "Short title of the card (3 or more characters)",
+      "front": "card-001-front.png",
+      "back": "card-001-back.png"
+    },
+    {
+      "kind": "flashcard",
+      "title": "पानी का रासायनिक सूत्र",
+      "front": "card-002-front.png",
+      "back": "card-002-back.png",
+      "frontText": "पानी का रासायनिक सूत्र क्या है?",
+      "backText": "H2O"
+    }
+  ]
+}
+
+- "language" is "hi" or "en" (an item can have its own "language" and "topic").
+- "frontText" and "backText" are optional. They are a text copy of the card, read aloud by screen readers. If you leave them out,
+  the title is used. Please add them - they help blind learners.
+- The names in "front" and "back" must be EXACTLY the names of the image files you made.
+- The manifest must list every card of the batch, and no card without images.
+
+My cards:
+(paste your cards here)
+----- COPY UNTIL HERE -----
+
+IF THE CHAT CANNOT MAKE IMAGE FILES
+Be honest with yourself: many chats can only show pictures, not give you files with exact names. Try these in this order:
+ a) Ask: "Put all the images in one ZIP file for download." Open the ZIP on your phone (Files app) and extract it.
+ b) Ask for the images ONE BY ONE and save each with the exact name (long-press the picture -> Download, then rename it).
+ c) Ask for an HTML (or SVG) file per card instead. Open it in your phone browser, take a screenshot, and rename the screenshot
+    (card-001-front.png ...). This is slow - only use it for a small set.
+ d) Make the cards in Canva or another design app (a bulk-create feature exists there) and export all pages as PNG.
+If none works, send text flashcards instead (see 1-PROMPT-copy-this-into-claude-chat.txt) - they need no images.

@@ -260,7 +260,12 @@ describe('mobile ↔ server contract (drift guard)', () => {
   };
   it('FeedItem fields in the app are exactly the fields the feed returns', async () => {
     const [item] = (await getFeed(sql, { userId: user, limit: 1, now: T0, seed: 1 })).items;
-    expect(mobileKeys('FeedItem')).toEqual(Object.keys(item!).sort());
+    // `instantCheck` is optional: only tap-to-answer questions carry it (covered in creator.test.ts)
+    expect(mobileKeys('FeedItem').filter((k) => k !== 'instantCheck')).toEqual(
+      Object.keys(item!)
+        .filter((k) => k !== 'instantCheck')
+        .sort(),
+    );
   });
   it('SubmitAnswerResponse fields in the app are exactly what submitAnswer returns', async () => {
     const r = await submitAnswer(sql, {

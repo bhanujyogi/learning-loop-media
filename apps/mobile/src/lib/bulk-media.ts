@@ -53,8 +53,6 @@ const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp'];
 const PLACEHOLDER_ID = 'placeholder-media-id';
 const HEAD_KEYS = ['kind', 'title', 'language', 'conceptId', 'topic', 'difficulty'] as const;
 
-const isObj = (v: unknown): v is Record<string, unknown> =>
-  !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown): string | undefined =>
   typeof v === 'string' && v.trim() ? v.trim() : undefined;
 

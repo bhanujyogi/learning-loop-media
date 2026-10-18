@@ -69,7 +69,35 @@ needs `kind`, `title` (3 or more characters) and `body`:
 Note blocks can be `heading` (with `level` 1-4 and `text`), `paragraph`, `list` (with `items`), `callout` (with
 `kind`: tip, warning, misconception or example), `formula` (with `latex`) and `revision_prompt` (with `prompt`).
 
-Videos and image posts cannot be imported from a file. Make those in the app with **New post**.
+## Media items: picture flashcards, image posts, videos
+
+These need files. Put the manifest and all the media files on the phone, then in the app choose the manifest and tap
+**Select media files** (multi-select; select everything at once). File names in the manifest are matched to the picked files by
+exact base name, case-insensitive, folders ignored. Owner-facing instructions: `bulk-upload/3-PROMPT-picture-flashcards.txt`,
+`bulk-upload/4-PROMPT-images-and-videos.txt`, templates `bulk-upload/5-TEMPLATE-*.json` and `6-TEMPLATE-*.json`.
+
+| What              | Manifest item                                                                                                        | create-content body                                                                       |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Picture flashcard | `{ "kind": "flashcard", "title", "topic", "front": "a-front.png", "back": "a-back.png", "frontText"?, "backText"? }` | `{ front, back, frontMediaId, backMediaId }` (text = `frontText`/`backText` or the title) |
+| Image post        | `{ "kind": "image", "title", "images": ["p1.jpg", "p2.jpg"], "caption"? }`                                           | `{ mediaIds: [...], caption }`                                                            |
+| Video             | `{ "kind": "video", "title", "file": "reel.mp4", "durationSeconds"? }`                                               | `{ mediaId, durationMs }` (measured from the file when absent)                            |
+
+A flashcard with a `body` stays a normal text flashcard, so one manifest can mix everything.
+
+How it works (`src/lib/bulk-media.ts`, `runMixedImport` in `src/lib/bulk-import.ts`):
+
+- Parsing validates every media item with `parseCreatorSubmission` using placeholder media ids; extensions must be
+  jpg/jpeg/png/webp (pictures) or mp4 (video).
+- Pre-flight summary: items ready, files to upload and total size, MISSING referenced files (first 10), UNUSED picked files,
+  wrong type / too big files, files picked twice (the first one is used). Items with a problem are skipped and listed.
+- Limits: pictures <= 10 MB, videos <= 60 MB (same as the creator screen), at most 2000 items and 600 media files per manifest
+  (5000 items for text-only manifests), manifest <= 5 MB.
+- Uploads run sequentially (one file in memory at a time) into the owner's private folder as `pending` media. A file referenced
+  by several items is uploaded once per use, because `finalize_my_media` attaches a media row to one post only.
+- Network errors / 5xx are retried twice with backoff; 429 stops as "rate limited"; another 4xx fails only that item. Bodies are
+  then sent to `create-content` in chunks of 25. Uploaded-but-unattached media (after a failed chunk or a stop) stays private and
+  harmless. Resume with **Start from item number**.
+- The server verifies and finalises the media itself from `mediaIds`; nothing in the app can mark media ready.
 
 ## What the app does when you load a file
 
@@ -85,7 +113,7 @@ Keep the app open while it runs. A file of 500 questions takes a few minutes.
 
 ## Limits
 
-- At most **5000 items** and **5 MB** per file. Ask the AI chat for files of about 500 items - they are easier to check.
+- At most **5000 items** (**2000 items and 600 media files** if the file contains pictures or videos) and **5 MB** per file. Ask the AI chat for files of about 500 items - they are easier to check.
 - Trusted creators can import about **1000 posts per hour**. Other accounts can post about **20 per hour**.
 - If you hit the limit, the app stops and tells you "start again from item N". Wait a while, then import the same file again
   and type N in **Start from item number**, so nothing is imported twice.
