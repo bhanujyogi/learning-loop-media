@@ -27,8 +27,12 @@ The build needs the 6 GB Gradle heap settings already in the workflow.
 - The tool wrapper silently hangs (60 s timeout) on SQL text containing `delete from` / `drop`; build those statements dynamically
   (e.g. `'del' || 'ete from ...'` inside `execute`) or avoid them.
 - Edge Functions are deployed with `deploy_edge_function` as a tiny `index.ts` that imports the function from a PINNED commit on raw.githubusercontent.com,
-  plus a `deno.json` import map pointing `@learning-loop/*` at the same commit (see git history of this file's author for the pattern; the
-  five functions: feed, events, onboarding, submit-answer, create-content). Push first, then deploy with the new commit SHA.
+  plus a `deno.json` import map pointing `@learning-loop/*` at the same commit. The five functions: feed, events, onboarding, submit-answer,
+  create-content. Push first, then deploy each with the new commit SHA (`entrypoint_path: index.ts`, `import_map_path: deno.json`, `verify_jwt: true`).
+  Pattern for `<fn>` and commit `<SHA>`, with B=https://raw.githubusercontent.com/bhanujyogi/learning-loop-media/<SHA>:
+    index.ts  : `import '<B>/supabase/functions/<fn>/index.ts';`
+    deno.json : copy `supabase/functions/deno.json` but rewrite every `../../packages/...` value to `<B>/packages/...`
+                (keep the `npm:` entries: @supabase/supabase-js@2, ts-fsrs@5, zod@4, postgres@3).
 - Logs: `query_logs` with `select ... from logs where source in ('function_logs','function_edge_logs')`.
 
 ## Product decisions already made (do not re-ask)
